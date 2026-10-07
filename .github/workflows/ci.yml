@@ -1,0 +1,61 @@
+# Continuous integration: runs on every push and pull request.
+# Every job must pass before a change can be merged into main.
+
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+  id-token: write # lets the aws job request an OIDC token (no stored AWS secrets)
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10
+      - run: uv sync --frozen
+      # Unit tests check the code; golden tests re-derive the paper's published numbers.
+      - run: uv run pytest -q
+
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: hashicorp/setup-terraform@v4
+      - run: terraform -chdir=infra/dev fmt -check -recursive
+      - run: terraform -chdir=infra/dev init -backend=false -input=false
+      - run: terraform -chdir=infra/dev validate
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build -f containers/Dockerfile -t qafi-platform .
+      - run: docker run --rm qafi-platform
+
+  # Proves that CI can act in the AWS account through OIDC: GitHub's short-lived token
+  # is exchanged for temporary credentials of a role, so no AWS key is stored anywhere.
+  aws:
+    if: github.event_name == 'push' && vars.AWS_ROLE_ARN != ''
+    needs: [lint, test, terraform]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: eu-central-1
+      - run: aws sts get-caller-identity

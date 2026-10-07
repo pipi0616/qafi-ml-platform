@@ -1,0 +1,39 @@
+# Data lives in S3, never in git. The only exception is tests/golden/data/: compact
+# copies of the paper's benchmark data (~10 MB) so CI can re-derive the published numbers.
+/data/
+*.parquet
+*.csv.gz
+!/tests/golden/data/*.parquet
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+.terraform.lock.hcl.bak
+
+# Secrets and credentials
+.env
+*.pem
+.aws/
+credentials
+
+# Python / Jupyter
+__pycache__/
+*.pyc
+.venv/
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+
+# OS
+.DS_Store
