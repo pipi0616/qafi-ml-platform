@@ -1,0 +1,22 @@
+# Databricks Asset Bundle: everything this project runs on Databricks, defined as code.
+#   databricks bundle validate   check the definitions
+#   databricks bundle deploy     create or update the schemas, volume and job in the workspace
+#   databricks bundle run raw_to_silver
+# Run from this folder. The workspace URL lives in the CLI profile, not in git.
+
+bundle:
+  name: qafi-lakehouse
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Unity Catalog catalog of this environment (created once in notebook 04)
+    default: qafi_dev
+
+targets:
+  dev:
+    default: true
+    workspace:
+      profile: qafi

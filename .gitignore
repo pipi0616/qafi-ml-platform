@@ -37,3 +37,6 @@ dbt/logs/
 
 # OS
 .DS_Store
+
+# Databricks Asset Bundles: local deployment state
+databricks/.databricks/

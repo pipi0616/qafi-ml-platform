@@ -1,0 +1,87 @@
+# Notebook 04: raw files -> bronze -> silver, on serverless compute. Two jobs:
+#
+#   training_data (run now):
+#     copy_raw ──┬──▶ bronze_reference ──┬──▶ silver_dms ──▶ quality_checks (scope dms)
+#                └──▶ bronze_dms ─────────┘
+#
+#   old_predictions (run in chapter 09, to compare old and new proteome-wide predictions;
+#   needs the reference tables from training_data):
+#     copy_raw ──▶ bronze_proteome ──▶ silver_proteome ──▶ quality_checks (scope proteome)
+
+resources:
+  schemas:
+    raw:
+      catalog_name: ${var.catalog}
+      name: raw
+      comment: Files copied from the AWS raw bucket, exactly as received
+    bronze:
+      catalog_name: ${var.catalog}
+      name: bronze
+      comment: Tables loaded from the raw files without cleaning
+    silver:
+      catalog_name: ${var.catalog}
+      name: silver
+      comment: Cleaned tables with a defined grain, typed columns and quality checks
+
+  volumes:
+    files:
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.raw.name}
+      name: files
+      volume_type: MANAGED
+      comment: Raw files under the same paths as in S3 (datasets/<dataset>/<version>/<file>)
+
+  jobs:
+    training_data:
+      name: qafi training data
+      max_concurrent_runs: 1
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+      tasks:
+        - task_key: copy_raw
+          notebook_task:
+            notebook_path: ../src/notebooks/copy_raw.py
+        - task_key: bronze_reference
+          depends_on: [{ task_key: copy_raw }]
+          notebook_task:
+            notebook_path: ../src/notebooks/bronze_reference.py
+        - task_key: bronze_dms
+          depends_on: [{ task_key: copy_raw }]
+          notebook_task:
+            notebook_path: ../src/notebooks/bronze_dms.py
+        - task_key: silver_dms
+          depends_on: [{ task_key: bronze_reference }, { task_key: bronze_dms }]
+          notebook_task:
+            notebook_path: ../src/notebooks/silver_dms.py
+        - task_key: quality_checks
+          depends_on: [{ task_key: silver_dms }]
+          notebook_task:
+            notebook_path: ../src/notebooks/quality_checks.py
+            base_parameters: { scope: dms }
+
+    old_predictions:
+      name: qafi old proteome predictions
+      max_concurrent_runs: 1
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: limit
+          default: "0" # proteins to load; 0 = all
+      tasks:
+        - task_key: copy_raw
+          notebook_task:
+            notebook_path: ../src/notebooks/copy_raw.py
+        - task_key: bronze_proteome
+          depends_on: [{ task_key: copy_raw }]
+          notebook_task:
+            notebook_path: ../src/notebooks/bronze_proteome.py
+        - task_key: silver_proteome
+          depends_on: [{ task_key: bronze_proteome }]
+          notebook_task:
+            notebook_path: ../src/notebooks/silver_proteome.py
+        - task_key: quality_checks
+          depends_on: [{ task_key: silver_proteome }]
+          notebook_task:
+            notebook_path: ../src/notebooks/quality_checks.py
+            base_parameters: { scope: proteome }

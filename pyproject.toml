@@ -24,6 +24,7 @@ dev = [
     "pyarrow>=25.0.1",
     "scipy>=1.18.1",
     "scikit-learn>=1.9.1",
+    "databricks-sdk>=0.72",
 ]
 
 # --- packaging: makes `import qafi_platform` work everywhere (uv run, pytest, Docker) ---
@@ -43,8 +44,16 @@ extend-exclude = ["notebooks"]
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]   # errors, pyflakes, import order, bugbear, modern syntax
 
+# Code under databricks/ runs on Databricks serverless, which is Python 3.11.
+[tool.ruff.per-file-target-version]
+"databricks/**/*.py" = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+"databricks/src/notebooks/*.py" = ["F821"]   # spark, dbutils and display are provided by Databricks
+
 # --- tests ---
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["databricks/src"]   # lets the tests import the code the Databricks jobs run
 addopts = "-ra"
 markers = ["golden: re-derives a number published in the QAFI paper"]

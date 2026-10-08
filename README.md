@@ -58,4 +58,4 @@ tests/          unit · data · golden (published numbers)
 
 ## Status
 
-In progress; see [`docs/plan.md`](docs/plan.md). Done: 00 account baseline, 01 Terraform, 02 engineering + CI/CD. Current: 03 raw ingestion (S3 event → Lambda validator with a receipt registry) and 03b config-driven ingestion of public datasets (ClinVar, UniProt, ProteinGym, AlphaFold) straight from the publishers.
+In progress; see [`docs/plan.md`](docs/plan.md). Done: 00 account baseline, 01 Terraform, 02 engineering + CI/CD. Current: 04 Databricks lakehouse (Unity Catalog, Asset Bundle job: raw → bronze → silver with quality checks). Done before: 03 raw ingestion (S3 event → Lambda validator with a receipt registry) and 03b config-driven ingestion of public datasets (ClinVar, UniProt, ProteinGym, AlphaFold) straight from the publishers.

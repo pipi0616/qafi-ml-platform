@@ -44,7 +44,7 @@
 | 4 | 数据处理和机器学习在 Databricks Free Edition | 公司用得最多的数据平台；免费版功能够用 |
 | 5 | 预测结果批量算好，API 只查表 | 输入空间可枚举（约 2 亿个替换），特征计算重 |
 | 6 | 对外 API 和 GenAI 放在 AWS | 公司里对外服务一般不放在数据平台里；Bedrock 是 AWS 上 GenAI 的标准入口 |
-| 7 | 全蛋白组特征不重算；训练数据从 raw 重建 | 已有全蛋白组预测结果，2 万个蛋白的 MSA 和结构计算免费额度跑不动；训练集只有几十到两百个蛋白，重建既可行又能把以前不标准的整理找出来 |
+| 7 | **最终目标：用新流程重新预测全蛋白组**；训练数据和全蛋白组的特征都从 raw 重算 | 现有全蛋白组预测是旧方法算的，不一定对，只作对照（09 号新旧对比）。2 万个蛋白的结构、MSA、ESM 特征计算量很大，07 号先评估免费额度能撑住哪些、怎么分批 |
 | 8 | 所有原始数据只从官方来源进 raw，版本写死 | 可复现、可追溯；以前自己整理的文件只当参照答案，不当数据源 |
 
 ## 3 · 文件夹结构和三条工作规则
@@ -81,12 +81,12 @@ qafi-ml-platform/
 | 02 | AWS + GitHub | 工程化代码库 + CI/CD；论文数字写成黄金测试（0.480 / 0.914） | GitHub Actions、OIDC、IAM 角色、Docker、pytest |
 | 03 | AWS | 数据接入（大门）：86 GB 压缩包分块上传到 S3 raw；每个新文件到达时，S3 事件自动触发 Lambda 校验并登记 | S3、Lambda、S3 事件、CloudWatch Logs |
 | 03b | AWS | 公开数据进货：按数据源清单（`config/sources.toml`）由送货员 Lambda 从官方直接搬进 raw：ClinVar、UniProt、ProteinGym、AlphaFold v4/v6；版本写死、幂等 | Lambda、HTTP Range、S3 分块上传 |
-| 04 | Databricks | 湖仓：raw 文件进 Unity Catalog → bronze Delta 表；整理全蛋白组预测表（去掉 99% 的重复行、修正标错的列、空字符串转 NULL）；ClinVar、UniProt 也进表。一切从 raw 出发，以前自己整理的文件只当参照答案 | Unity Catalog、Delta、Spark |
+| 04 | Databricks | 湖仓：raw 文件进 Unity Catalog → bronze Delta 表 → silver。主线是**训练集**（ProteinGym DMS：一个实验里的一个单点突变一行，核对序列）和参考数据（UniProt、ClinVar）；旧的全蛋白组预测做成单独的任务，09 号再跑。一切从 raw 出发，以前自己整理的文件只当参照答案 | Unity Catalog、Delta、Spark、Asset Bundles |
 | 05 | Databricks | dbt：silver / gold 层、测试、文档、血缘 | dbt-databricks |
 | 06 | Databricks + AWS | 编排：Lakeflow Jobs 串起 04–05；本机 Airflow 定时触发这个 Job，并按数据源清单的 `refresh` 定时进新版本；Databricks 令牌存在 AWS Secrets Manager | Lakeflow Jobs、Airflow、Secrets Manager |
-| 07 | Databricks | 实验：训练数据从 raw 重建（ProteinGym DMS + AlphaFold 结构 → 特征，和论文用的版本对照）；科学代码搬进 `src/qafi_core`（黄金测试保证没搬坏）；防泄漏交叉验证；每次实验记进 MLflow | MLflow |
+| 07 | Databricks | 特征和实验：从 raw 算特征（AlphaFold 结构、序列；先训练集的蛋白，再评估全蛋白组怎么算），和论文用的版本对照；科学代码搬进 `src/qafi_core`（黄金测试保证没搬坏）；防泄漏交叉验证；每次实验记进 MLflow | MLflow |
 | 08 | Databricks | 训练 → 质量闸门（复现不了论文数字就不注册）→ 模型注册 | MLflow、Unity Catalog 模型 |
-| 09 | Databricks | 批量打分，和现有全蛋白组预测对照；漂移检查和告警 | MLflow、Spark |
+| 09 | Databricks | **用新模型给全蛋白组重新预测**（批量打分），和旧的全蛋白组预测逐个对照（04 号准备好的 old_predictions 任务）；漂移检查和告警 | MLflow、Spark |
 | 10 | AWS | 服务：gold 预测表导出到 S3 lake；Glue Catalog + Athena 用 SQL 查；FastAPI 容器部署到 Lambda + API Gateway | Athena、Glue、ECR、Lambda、API Gateway |
 | 11 | AWS | RAG：Bedrock Knowledge Base 收录 UniProt 注释和你的论文 | Bedrock |
 | 12 | AWS | Agent：调用预测 API、知识库等工具；Guardrails；评估 | Bedrock Agents、Guardrails |
@@ -138,8 +138,9 @@ qafi-ml-platform/
 - [x] 节奏：按顺序做完为止
 - [x] **00 · 云账号与安全基线**（2026-10-07 完成：MFA、预算报警、账户级 S3 禁止公开）
 - [x] **01 · Terraform**（2026-10-07 完成：21 个资源已 apply）
-- [ ] **02 · 工程化代码库 + CI/CD**（2026-10-07：第一次提交已推到 GitHub 私有仓库；第一次 CI 因 `setup-uv@v10` 标签不存在而失败，已改为 `v10.2.0`；还差第 7 步 OIDC）
-- [ ] **03b · 公开数据进货**（已写好：`config/sources.toml` 7 个文件，送货员 Lambda `qafi-dev-raw-fetcher`，`infra/dev/fetch.tf`）
-- [ ] **03 · 数据接入** ← 当前（已写好：S3 事件 → Lambda `qafi-dev-raw-validator` 验货、`_registry/` 收货单、分块上传 + CRC64NVME 指纹核对；`infra/dev/ingest.tf` 新增 8 个资源）
+- [x] **02 · 工程化代码库 + CI/CD**（2026-10-08 完成：CI 5 项全绿，OIDC 登录 AWS 成功；修过两次红：`setup-uv@v10` 标签不存在、GitHub 改用带永久编号的 OIDC 写法）
+- [ ] **04 · Databricks 湖仓** ← 当前（2026-10-08 已写好并试通：`databricks/` bundle 两个任务：`training_data`（ProteinGym + UniProt + ClinVar，约 4 分钟，6 条质检全过：69.6 万个单点突变、217 个实验、80 个人类蛋白）和 `old_predictions`（旧全蛋白组预测，20 个蛋白试通，09 号再跑）；由用户在 04 号亲手运行 training_data）
+- [x] **03b · 公开数据进货**（已写好：`config/sources.toml` 7 个文件，送货员 Lambda `qafi-dev-raw-fetcher`，`infra/dev/fetch.tf`）
+- [x] **03 · 数据接入**（已写好：S3 事件 → Lambda `qafi-dev-raw-validator` 验货、`_registry/` 收货单、分块上传 + CRC64NVME 指纹核对；`infra/dev/ingest.tf` 新增 8 个资源）
 - 2026-10-07：计划按「只学公司标准做法」的规则从 22 个 notebook 缩到 14 个
 - 2026-10-07：**定稿**：AWS（00–03、10–13）+ Databricks（04–09），各学重点；01 号已 apply（21 个资源）
