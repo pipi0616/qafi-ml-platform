@@ -8,6 +8,10 @@ sources:
     tables:
       - name: dms_scores
         description: ProteinGym DMS assays, one row per single substitution per assay (notebook 04).
+      - name: mavedb_variants
+        description: MaveDB human variants, one row per protein variant per score set, on UniProt numbering (notebook 07c).
+      - name: mavedb_score_sets
+        description: MaveDB human score sets kept for labels, one row per score set (notebook 07c).
 
   - name: bronze
     database: "{{ target.database }}"

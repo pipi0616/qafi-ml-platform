@@ -31,3 +31,13 @@ seeds:
     +persist_docs:
       relation: true
       columns: true
+
+# Labels (notebook 07c): a dataset gives labels only when its two anchors can be trusted.
+vars:
+  label_min_synonymous: 1 # variants defining 1 (like the wild type)
+  label_min_nonsense: 3 # variants defining 0 (protein cut short)
+  label_min_missense: 50
+  label_min_separation: 0.5 # |anchor 1 - anchor 0| relative to the 10th-90th percentile range of missense scores
+  label_min_numbering_agreement: 0.95 # share of reference residues that match UniProt
+  label_min: -1 # labels are clipped to [-1, 3], as in Lafita et al. 2024
+  label_max: 3

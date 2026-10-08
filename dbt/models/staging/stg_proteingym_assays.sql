@@ -7,5 +7,6 @@ select
     first_author,
     try_cast(year as int) as year,
     target_seq,
-    try_cast(seq_len as int) as assay_sequence_length
+    try_cast(seq_len as int) as assay_sequence_length,
+    raw_DMS_phenotype_name as phenotype
 from {{ source('bronze', 'proteingym_assays') }}

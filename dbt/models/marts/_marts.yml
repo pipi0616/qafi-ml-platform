@@ -105,7 +105,116 @@ models:
       - name: dms_score_bin
         description: ProteinGym's binary label (1 = fit, 0 = not fit) at the assay's cutoff.
 
+  - name: dim_label_dataset
+    description: >
+      Datasets that could give training labels (notebook 07c), one row per MaveDB score set or ProteinGym stability
+      assay: the scores that define 1 (like the wild type) and 0 (function lost), how well they are separated, and
+      whether the dataset is used. status says why a dataset is left out.
+    columns:
+      - name: dataset_id
+        description: MaveDB score set URN (urn:mavedb:...) or ProteinGym assay ID.
+        data_tests: [unique, not_null]
+      - name: source
+        description: mavedb or proteingym.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [mavedb, proteingym]
+      - name: uniprot_id
+        description: UniProt accession of the measured protein.
+      - name: is_domainome
+        description: Part of Human Domainome 1 (Beltran et al. 2025), the old paper's external benchmark.
+      - name: anchor_method
+        description: >
+          synonymous and nonsense (median score of each), or wild type by definition (ddG assays: the wild type is 0,
+          the median of the worst 1% defines 0 of the label).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [synonymous and nonsense, wild type by definition]
+      - name: one_score
+        description: Score that becomes label 1.
+      - name: zero_score
+        description: Score that becomes label 0.
+      - name: separation
+        description: Distance between the two anchors relative to the 10th-90th percentile range of missense scores.
+      - name: numbering_agreement
+        description: Share of variants whose reference residue matches UniProt at the converted position.
+      - name: status
+        description: used, or the reason the dataset gives no labels.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values:
+                  - used
+                  - protein not in the reference proteome
+                  - too few missense variants
+                  - no synonymous variants
+                  - too few nonsense variants
+                  - anchors too close
+                  - numbering disagrees with UniProt
+
+  - name: fct_variant_label
+    description: >
+      Training labels (notebook 07c), one row per missense variant per dataset: the score rescaled between the
+      dataset's two anchors, so 1 = like the wild type and 0 = function lost, on UniProt numbering. Clipped to
+      [-1, 3]. Only datasets with status used, only variants whose residue matches UniProt.
+    columns:
+      - name: dataset_id
+        description: Dataset the label comes from.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_label_dataset')
+                field: dataset_id
+      - name: uniprot_id
+        description: UniProt accession of the protein.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_protein')
+                field: uniprot_id
+      - name: uniprot_position
+        description: Position in UniProt canonical numbering, the numbering of AlphaFold structures.
+        data_tests: [not_null]
+      - name: ref_aa
+        description: Amino acid before the substitution.
+      - name: alt_aa
+        description: Amino acid after the substitution.
+      - name: score
+        description: Score as published.
+      - name: label
+        description: 1 = like the wild type, 0 = function lost, > 1 = possibly more active; clipped to [-1, 3].
+        data_tests: [not_null]
+      - name: is_domainome
+        description: Comes from Human Domainome 1 (abundance, i.e. stability).
+
 unit_tests:
+
+  - name: labels_are_scores_rescaled_between_the_two_anchors
+    description: A dataset with anchors 0 (= label 1) and -2 (= label 0); clipping; a rejected dataset gives no labels.
+    model: fct_variant_label
+    given:
+      - input: ref('stg_mavedb_variants')
+        rows:
+          - { urn: good, uniprot_id: P1, kind: missense, uniprot_position: 1, ref_aa: M, alt_aa: A, score: -1.0, ref_matches_uniprot: true }
+          - { urn: good, uniprot_id: P1, kind: missense, uniprot_position: 2, ref_aa: K, alt_aa: A, score: -9.0, ref_matches_uniprot: true }
+          - { urn: good, uniprot_id: P1, kind: missense, uniprot_position: 3, ref_aa: V, alt_aa: A, score: 7.0, ref_matches_uniprot: true }
+          - { urn: good, uniprot_id: P1, kind: missense, uniprot_position: 4, ref_aa: L, alt_aa: A, score: 0.0, ref_matches_uniprot: false }
+          - { urn: close, uniprot_id: P1, kind: missense, uniprot_position: 1, ref_aa: M, alt_aa: A, score: -1.0, ref_matches_uniprot: true }
+      - input: ref('fct_dms_measurement')
+        rows: []
+      - input: ref('dim_label_dataset')
+        rows:
+          - { dataset_id: good, source: mavedb, one_score: 0.0, zero_score: -2.0, is_domainome: false, status: used }
+          - { dataset_id: close, source: mavedb, one_score: 0.0, zero_score: -0.1, is_domainome: false, status: anchors too close }
+    expect:
+      rows:
+        - { dataset_id: good, uniprot_position: 1, label: 0.5 }
+        - { dataset_id: good, uniprot_position: 2, label: -1.0 }
+        - { dataset_id: good, uniprot_position: 3, label: 3.0 }
   - name: positions_are_converted_to_uniprot_numbering
     description: Each way of converting a position, on a protein small enough to check by eye.
     model: fct_dms_measurement

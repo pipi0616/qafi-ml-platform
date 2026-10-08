@@ -3,7 +3,10 @@
 #   training_data (04 and 05 in one job; Airflow starts it every month, notebook 06):
 #     copy_raw ──┬──▶ bronze_reference ──┬──▶ silver_dms ──▶ quality_checks (scope dms) ──▶ gold (dbt build)
 #                ├──▶ bronze_dms ─────────┘
-#                └──▶ bronze_mavedb (notebook 07b)
+#                └──▶ bronze_mavedb ──▶ silver_mavedb (notebooks 07b, 07c; also needs bronze_reference)
+#
+#   structures (notebook 07d; run when the AlphaFold version changes, not monthly):
+#     copy_raw ──▶ bronze_alphafold ──▶ silver_structure (also needs bronze.uniprot_proteome from training_data)
 #
 #   old_predictions (run in chapter 09, to compare old and new proteome-wide predictions;
 #   needs the reference tables from training_data):
@@ -95,6 +98,10 @@ resources:
           depends_on: [{ task_key: copy_raw }]
           notebook_task:
             notebook_path: ../src/notebooks/bronze_mavedb.py
+        - task_key: silver_mavedb
+          depends_on: [{ task_key: bronze_mavedb }, { task_key: bronze_reference }]
+          notebook_task:
+            notebook_path: ../src/notebooks/silver_mavedb.py
         - task_key: silver_dms
           depends_on: [{ task_key: bronze_reference }, { task_key: bronze_dms }]
           notebook_task:
@@ -140,3 +147,31 @@ resources:
           notebook_task:
             notebook_path: ../src/notebooks/quality_checks.py
             base_parameters: { scope: proteome }
+
+    structures:
+      name: qafi structures
+      max_concurrent_runs: 1
+      timeout_seconds: 7200
+      email_notifications:
+        on_failure: ["${workspace.current_user.userName}"]
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: alphafold_version
+          default: "v6"
+        - name: limit
+          default: "0" # proteins to compute, for a trial run; 0 = all
+      tasks:
+        - task_key: copy_raw
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          notebook_task:
+            notebook_path: ../src/notebooks/copy_raw.py
+        - task_key: bronze_alphafold
+          depends_on: [{ task_key: copy_raw }]
+          notebook_task:
+            notebook_path: ../src/notebooks/bronze_alphafold.py
+        - task_key: silver_structure
+          depends_on: [{ task_key: bronze_alphafold }]
+          notebook_task:
+            notebook_path: ../src/notebooks/silver_structure.py
