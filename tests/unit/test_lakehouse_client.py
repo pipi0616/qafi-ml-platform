@@ -70,3 +70,23 @@ def test_latest_run_lists_each_task_with_its_state(capsys):
         {"task": "copy_raw", "state": "TERMINATED", "result": "SUCCESS", "minutes": 3.0}
     ]
     assert "runs/7" in capsys.readouterr().out
+
+
+def test_dbt_env_uses_a_short_lived_token_from_the_cli(monkeypatch):
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        return NS(stdout=json.dumps({"access_token": "one-hour-token", "token_type": "Bearer"}))
+
+    monkeypatch.setattr(lakehouse.subprocess, "run", fake_run)
+    w = NS(
+        config=NS(host="https://dbc-123.cloud.databricks.com"),
+        warehouses=NS(list=lambda: iter([NS(odbc_params=NS(path="/sql/1.0/warehouses/abc"))])),
+    )
+    assert lakehouse.dbt_env(w) == {
+        "DATABRICKS_HOST": "dbc-123.cloud.databricks.com",
+        "DATABRICKS_HTTP_PATH": "/sql/1.0/warehouses/abc",
+        "DATABRICKS_TOKEN": "one-hour-token",
+    }
+    assert calls == [["databricks", "auth", "token", "--profile", "qafi", "-o", "json"]]

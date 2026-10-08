@@ -21,6 +21,13 @@ jobs:
       - run: uv sync --frozen
       - run: uv run ruff check .
       - run: uv run ruff format --check .
+      # The dbt project must parse: models, tests and docs reference each other correctly. No connection is
+      # opened, so placeholder connection details are enough.
+      - run: uv run dbt parse --project-dir dbt --profiles-dir dbt
+        env:
+          DATABRICKS_HOST: ci.invalid
+          DATABRICKS_HTTP_PATH: /sql/1.0/warehouses/ci
+          DATABRICKS_TOKEN: placeholder
 
   test:
     runs-on: ubuntu-latest

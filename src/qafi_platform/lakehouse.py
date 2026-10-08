@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
 import time
 
 import pandas as pd
@@ -94,3 +95,22 @@ def latest_run(w, job_name: str) -> pd.DataFrame:
             }
         )
     return pd.DataFrame(rows)
+
+
+def dbt_env(w, profile: str = "qafi") -> dict[str, str]:
+    """The variables dbt/profiles.yml reads: workspace, SQL warehouse and a token from the CLI login.
+
+    The token comes from ``databricks auth token`` and expires within the hour, so no long-lived
+    credential is ever written down; call this again when dbt reports an expired token.
+    """
+    out = subprocess.run(
+        ["databricks", "auth", "token", "--profile", profile, "-o", "json"],
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout
+    return {
+        "DATABRICKS_HOST": w.config.host.removeprefix("https://"),
+        "DATABRICKS_HTTP_PATH": next(iter(w.warehouses.list())).odbc_params.path,
+        "DATABRICKS_TOKEN": json.loads(out)["access_token"],
+    }

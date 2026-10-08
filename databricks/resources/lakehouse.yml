@@ -22,6 +22,14 @@ resources:
       catalog_name: ${var.catalog}
       name: silver
       comment: Cleaned tables with a defined grain, typed columns and quality checks
+    staging:
+      catalog_name: ${var.catalog}
+      name: staging
+      comment: dbt staging views, one per source table, lightly cleaned (notebook 05)
+    gold:
+      catalog_name: ${var.catalog}
+      name: gold
+      comment: Tables organised by use (dimensions and facts), built by dbt from silver (notebook 05)
 
   volumes:
     files:

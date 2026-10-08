@@ -1,0 +1,16 @@
+# How dbt connects to Databricks. Nothing secret lives here: notebook 05 sets the variables.
+#   DATABRICKS_HOST       the workspace, from the CLI profile
+#   DATABRICKS_HTTP_PATH  the SQL warehouse dbt runs its queries on
+#   DATABRICKS_TOKEN      a one-hour token from `databricks auth token --profile qafi`, never a stored one
+
+qafi:
+  target: dev
+  outputs:
+    dev:
+      type: databricks
+      host: "{{ env_var('DATABRICKS_HOST') }}"
+      http_path: "{{ env_var('DATABRICKS_HTTP_PATH') }}"
+      token: "{{ env_var('DATABRICKS_TOKEN') }}"
+      catalog: qafi_dev
+      schema: gold
+      threads: 4

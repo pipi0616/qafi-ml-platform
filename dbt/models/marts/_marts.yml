@@ -1,0 +1,132 @@
+version: 2
+
+models:
+  - name: dim_protein
+    description: >
+      Human proteins of the UniProt reference proteome, one row per protein: identifiers, sequence and how
+      much DMS data exists for it. The proteins the model scores proteome-wide; the API's lookup table.
+    columns:
+      - name: uniprot_id
+        description: UniProt accession, e.g. P04637.
+        data_tests: [unique, not_null]
+      - name: entry_name
+        description: UniProt entry name, e.g. P53_HUMAN.
+        data_tests: [not_null]
+      - name: gene_name
+        description: Gene symbol, e.g. TP53.
+      - name: gene_id
+        description: NCBI GeneID; several are joined with ';' when a protein maps to more than one gene.
+      - name: protein_name
+        description: Recommended UniProt protein name.
+      - name: reviewed
+        description: True for Swiss-Prot (reviewed) entries, false for TrEMBL.
+      - name: length
+        description: Sequence length in residues.
+      - name: sequence
+        description: Canonical UniProt sequence; its numbering is the one AlphaFold structures use.
+      - name: dms_assays
+        description: Number of human DMS assays measuring this protein.
+      - name: dms_measurements
+        description: Number of DMS measurements (assay x substitution) for this protein.
+      - name: has_dms
+        description: Whether any DMS assay measures this protein.
+
+  - name: dim_dms_assay
+    description: Human DMS assays with a UniProt accession, one row per assay.
+    columns:
+      - name: dms_id
+        description: ProteinGym assay identifier, e.g. P53_HUMAN_Kotler_2018.
+        data_tests: [unique, not_null]
+      - name: uniprot_id
+        description: UniProt accession of the measured protein.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_protein')
+                field: uniprot_id
+      - name: selection_type
+        description: What the assay selects for (Activity, Binding, Expression, OrganismalFitness, Stability).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [Activity, Binding, Expression, OrganismalFitness, Stability]
+      - name: first_author
+        description: First author of the publication.
+      - name: year
+        description: Publication year.
+      - name: assay_sequence_length
+        description: Length of the sequence the assay measured (a domain can be much shorter than the protein).
+      - name: measurements
+        description: Number of single substitutions measured.
+      - name: share_mapped
+        description: Share of measurements whose position could be converted to UniProt numbering.
+
+  - name: fct_dms_measurement
+    description: >
+      One row per human DMS measurement: an assay, a single amino-acid substitution and its score, with the
+      position converted to UniProt canonical numbering. Scores are as published by ProteinGym (higher is
+      fitter); scaling per assay is a modelling choice made at training time.
+    columns:
+      - name: dms_id
+        description: Assay the measurement comes from.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_dms_assay')
+                field: dms_id
+      - name: uniprot_id
+        description: UniProt accession of the measured protein.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_protein')
+                field: uniprot_id
+      - name: assay_position
+        description: Position as numbered by the assay (within the measured construct).
+        data_tests: [not_null]
+      - name: uniprot_position
+        description: The same position in UniProt canonical numbering; NULL when it cannot be converted reliably.
+      - name: position_mapping
+        description: How the position was converted (identical, offset, kmer) or unmapped.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [identical, offset, kmer, unmapped]
+      - name: ref_aa
+        description: Amino acid before the substitution.
+      - name: alt_aa
+        description: Amino acid after the substitution.
+      - name: dms_score
+        description: Score as published by ProteinGym; higher means fitter.
+        data_tests: [not_null]
+      - name: dms_score_bin
+        description: ProteinGym's binary label (1 = fit, 0 = not fit) at the assay's cutoff.
+
+unit_tests:
+  - name: positions_are_converted_to_uniprot_numbering
+    description: Each way of converting a position, on a protein small enough to check by eye.
+    model: fct_dms_measurement
+    given:
+      - input: ref('stg_dms_scores')
+        rows:
+          - { dms_id: same, uniprot_id: P1, position: 2, ref_aa: K, alt_aa: A, dms_score: -1.0, dms_score_bin: 0 }
+          - { dms_id: domain, uniprot_id: P1, position: 2, ref_aa: L, alt_aa: A, dms_score: -0.5, dms_score_bin: 0 }
+          - { dms_id: variant, uniprot_id: P1, position: 2, ref_aa: K, alt_aa: A, dms_score: 0.1, dms_score_bin: 1 }
+          - { dms_id: variant, uniprot_id: P1, position: 20, ref_aa: E, alt_aa: A, dms_score: 0.2, dms_score_bin: 1 }
+      - input: ref('stg_proteingym_assays')
+        rows:
+          - { dms_id: same, target_seq: MKVLAGGTTTTTTTTTTRWQ }
+          - { dms_id: domain, target_seq: VLAGG }
+          - { dms_id: variant, target_seq: MKVLAGGTTTTTTTTTTRWE }
+      - input: ref('stg_uniprot_proteins')
+        rows:
+          - { uniprot_id: P1, sequence: MKVLAGGTTTTTTTTTTRWQ }
+    expect:
+      rows:
+        - { dms_id: same, assay_position: 2, uniprot_position: 2, position_mapping: identical }
+        - { dms_id: domain, assay_position: 2, uniprot_position: 4, position_mapping: offset }
+        - { dms_id: variant, assay_position: 2, uniprot_position: 2, position_mapping: kmer }
+        - { dms_id: variant, assay_position: 20, uniprot_position: null, position_mapping: unmapped }

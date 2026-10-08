@@ -82,7 +82,7 @@ qafi-ml-platform/
 | 03 | AWS | 数据接入（大门）：86 GB 压缩包分块上传到 S3 raw；每个新文件到达时，S3 事件自动触发 Lambda 校验并登记 | S3、Lambda、S3 事件、CloudWatch Logs |
 | 03b | AWS | 公开数据进货：按数据源清单（`config/sources.toml`）由送货员 Lambda 从官方直接搬进 raw：ClinVar、UniProt、ProteinGym、AlphaFold v4/v6；版本写死、幂等 | Lambda、HTTP Range、S3 分块上传 |
 | 04 | Databricks | 湖仓：raw 文件进 Unity Catalog → bronze Delta 表 → silver。主线是**训练集**（ProteinGym DMS：一个实验里的一个单点突变一行，核对序列）和参考数据（UniProt、ClinVar）；旧的全蛋白组预测做成单独的任务，09 号再跑。一切从 raw 出发，以前自己整理的文件只当参照答案 | Unity Catalog、Delta、Spark、Asset Bundles |
-| 05 | Databricks | dbt：silver / gold 层、测试、文档、血缘 | dbt-databricks |
+| 05 | Databricks | dbt：gold 层星型模型（`dim_protein`、`dim_dms_assay`、`fct_dms_measurement`）；DMS 位置换算成 UniProt 编号（AlphaFold 用的编号）；单元测试 + 数据测试；说明写进 Unity Catalog；CI 跑 `dbt parse` | dbt-databricks |
 | 06 | Databricks + AWS | 编排：Lakeflow Jobs 串起 04–05；本机 Airflow 定时触发这个 Job，并按数据源清单的 `refresh` 定时进新版本；Databricks 令牌存在 AWS Secrets Manager | Lakeflow Jobs、Airflow、Secrets Manager |
 | 07 | Databricks | 特征和实验：从 raw 算特征（AlphaFold 结构、序列；先训练集的蛋白，再评估全蛋白组怎么算），和论文用的版本对照；科学代码搬进 `src/qafi_core`（黄金测试保证没搬坏）；防泄漏交叉验证；每次实验记进 MLflow | MLflow |
 | 08 | Databricks | 训练 → 质量闸门（复现不了论文数字就不注册）→ 模型注册 | MLflow、Unity Catalog 模型 |
@@ -139,7 +139,8 @@ qafi-ml-platform/
 - [x] **00 · 云账号与安全基线**（2026-10-07 完成：MFA、预算报警、账户级 S3 禁止公开）
 - [x] **01 · Terraform**（2026-10-07 完成：21 个资源已 apply）
 - [x] **02 · 工程化代码库 + CI/CD**（2026-10-08 完成：CI 5 项全绿，OIDC 登录 AWS 成功；修过两次红：`setup-uv@v10` 标签不存在、GitHub 改用带永久编号的 OIDC 写法）
-- [ ] **04 · Databricks 湖仓** ← 当前（2026-10-08 已写好并试通：`databricks/` bundle 两个任务：`training_data`（ProteinGym + UniProt + ClinVar，约 4 分钟，6 条质检全过：69.6 万个单点突变、217 个实验、80 个人类蛋白）和 `old_predictions`（旧全蛋白组预测，20 个蛋白试通，09 号再跑）；由用户在 04 号亲手运行 training_data）
+- [ ] **05 · dbt gold** ← 当前（2026-10-08 写好并试通：`dbt build` PASS=25（4 个 staging 视图、3 张 gold 表、1 个单元测试、17 个数据测试）；16% 的 DMS 位置编号和 UniProt 不一致，97.9% 换算成功、0 错，2.1% 留空；dbt 用 `databricks auth token` 的一小时令牌；由用户在 05 号运行）
+- [x] **04 · Databricks 湖仓**（2026-10-08 完成，用户亲手运行并提交 0714e8e，CI 全绿：`databricks/` bundle 两个任务：`training_data`（ProteinGym + UniProt + ClinVar，约 4 分钟，6 条质检全过：69.6 万个单点突变、217 个实验、80 个人类蛋白）和 `old_predictions`（旧全蛋白组预测，20 个蛋白试通，09 号再跑）；由用户在 04 号亲手运行 training_data）
 - [x] **03b · 公开数据进货**（已写好：`config/sources.toml` 7 个文件，送货员 Lambda `qafi-dev-raw-fetcher`，`infra/dev/fetch.tf`）
 - [x] **03 · 数据接入**（已写好：S3 事件 → Lambda `qafi-dev-raw-validator` 验货、`_registry/` 收货单、分块上传 + CRC64NVME 指纹核对；`infra/dev/ingest.tf` 新增 8 个资源）
 - 2026-10-07：计划按「只学公司标准做法」的规则从 22 个 notebook 缩到 14 个

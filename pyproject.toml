@@ -25,6 +25,7 @@ dev = [
     "scipy>=1.18.1",
     "scikit-learn>=1.9.1",
     "databricks-sdk>=0.72",
+    "dbt-databricks>=1.12",
 ]
 
 # --- packaging: makes `import qafi_platform` work everywhere (uv run, pytest, Docker) ---

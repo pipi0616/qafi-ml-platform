@@ -1,0 +1,21 @@
+version: 2
+
+# Tables dbt reads but does not build: they come from the Databricks job of notebook 04.
+sources:
+  - name: silver
+    database: "{{ target.database }}" # the catalog, qafi_dev
+    schema: silver
+    tables:
+      - name: dms_scores
+        description: ProteinGym DMS assays, one row per single substitution per assay (notebook 04).
+
+  - name: bronze
+    database: "{{ target.database }}"
+    schema: bronze
+    tables:
+      - name: proteingym_assays
+        description: ProteinGym reference table, one row per DMS assay, as published.
+      - name: uniprot_proteome
+        description: UniProt human reference proteome, one row per protein.
+      - name: uniprot_idmapping
+        description: UniProt accession to other identifiers (GeneID, Ensembl, ...), one row per pair.
