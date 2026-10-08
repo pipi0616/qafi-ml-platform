@@ -2,8 +2,13 @@
 #
 # Every file lands at datasets/<name>/<version>/<file name from the URL>, is checked by the
 # raw validator and gets a receipt in _registry/. Versions are pinned: a new release goes into
-# a new version folder and never overwrites the old one. `refresh` is how often the publisher
-# releases; notebook 06 schedules re-ingestion from it.
+# a new version folder and never overwrites the old one. `{version}` in a URL is filled in from
+# `version`.
+#
+# `refresh` says who brings in a new release (notebook 06):
+#   monthly  Airflow's monthly run fetches the newest release by itself, then rebuilds the tables.
+#   manual   a person raises `version` here, in a reviewed change: these releases change the model's
+#            inputs (sequences, assays, structures) or can change the file layout.
 #
 # Deliberately not here:
 #   PDB    already public on AWS (s3.rcsb.org, updated weekly); read the few structures we
@@ -13,15 +18,15 @@
 
 [[dataset]]
 name = "clinvar"
-version = "2026-10"
+version = "2026-10"  # the oldest release to load; Airflow moves on to each newer month
 refresh = "monthly"
 what = "Clinical significance of human variants: the labels behind the ClinVar AUROC"
-urls = ["https://ftp.ncbi.nlm.nih.gov/pub/clinvar/tab_delimited/archive/variant_summary_2026-10.txt.gz"]
+urls = ["https://ftp.ncbi.nlm.nih.gov/pub/clinvar/tab_delimited/archive/variant_summary_{version}.txt.gz"]
 
 [[dataset]]
 name = "uniprot-human"
-version = "2026_03"  # current_release URLs: check the release number before re-fetching
-refresh = "every 8 weeks"
+version = "2026_03"  # current_release URLs: check the release number before raising it
+refresh = "manual"   # every 8 weeks
 what = "Human reference proteome: sequences, entry names, gene names and ID mappings"
 urls = [
     "https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/reference_proteomes/Eukaryota/UP000005640/UP000005640_9606.fasta.gz",
@@ -31,23 +36,23 @@ urls = [
 [[dataset]]
 name = "proteingym"
 version = "v1.3"
-refresh = "irregular releases"
+refresh = "manual"  # irregular releases
 what = "Deep mutational scanning benchmark: 217 assays of amino-acid substitutions, with their reference table"
 urls = [
-    "https://marks.hms.harvard.edu/proteingym/ProteinGym_v1.3/DMS_ProteinGym_substitutions.zip",
-    "https://marks.hms.harvard.edu/proteingym/ProteinGym_v1.3/DMS_substitutions.csv",
+    "https://marks.hms.harvard.edu/proteingym/ProteinGym_{version}/DMS_ProteinGym_substitutions.zip",
+    "https://marks.hms.harvard.edu/proteingym/ProteinGym_{version}/DMS_substitutions.csv",
 ]
 
 [[dataset]]
 name = "alphafold-human"
 version = "v4"
-refresh = "rare releases"
+refresh = "manual"  # rare releases
 what = "AlphaFold predicted structures of the human proteome, version 4 (used by most of the QAFI code)"
-urls = ["https://ftp.ebi.ac.uk/pub/databases/alphafold/v4/UP000005640_9606_HUMAN_v4.tar"]
+urls = ["https://ftp.ebi.ac.uk/pub/databases/alphafold/{version}/UP000005640_9606_HUMAN_{version}.tar"]
 
 [[dataset]]
 name = "alphafold-human"
 version = "v6"
-refresh = "rare releases"
+refresh = "manual"
 what = "AlphaFold predicted structures of the human proteome, version 6 (latest)"
-urls = ["https://ftp.ebi.ac.uk/pub/databases/alphafold/v6/UP000005640_9606_HUMAN_v6.tar"]
+urls = ["https://ftp.ebi.ac.uk/pub/databases/alphafold/{version}/UP000005640_9606_HUMAN_{version}.tar"]

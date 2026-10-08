@@ -139,7 +139,12 @@ qafi-ml-platform/
 - [x] **00 · 云账号与安全基线**（2026-10-07 完成：MFA、预算报警、账户级 S3 禁止公开）
 - [x] **01 · Terraform**（2026-10-07 完成：21 个资源已 apply）
 - [x] **02 · 工程化代码库 + CI/CD**（2026-10-08 完成：CI 5 项全绿，OIDC 登录 AWS 成功；修过两次红：`setup-uv@v10` 标签不存在、GitHub 改用带永久编号的 OIDC 写法）
-- [ ] **05 · dbt gold** ← 当前（2026-10-08 写好并试通：`dbt build` PASS=25（4 个 staging 视图、3 张 gold 表、1 个单元测试、17 个数据测试）；16% 的 DMS 位置编号和 UniProt 不一致，97.9% 换算成功、0 错，2.1% 留空；dbt 用 `databricks auth token` 的一小时令牌；由用户在 05 号运行）
+- [ ] **06 · 编排** ← 当前（2026-10-08 写好并试通，由用户在 06 号运行）
+  - Lakeflow Job `training_data` 末尾加了 dbt 任务 `gold`，在 Job 里 PASS=25。Job 带版本参数，`copy_raw` 失败重试，超时 1 小时，失败发邮件
+  - Airflow 3.3 在单独的环境里（`airflow/`），DAG `qafi_refresh` 每月 10 号运行：进新版本 → 放提货单 → 启动 Job。本机试跑 3 个任务全过，Job 6 步全过
+  - Airflow 用机器身份 `qafi-airflow`（OAuth M2M）进 Databricks，密钥在 AWS Secrets Manager（`airflow/connections/databricks_default`），90 天轮换；只能启动这一个 Job、往 raw 文件区放提货单
+  - `config/sources.toml`：`refresh = "monthly"`（ClinVar，自动）或 `"manual"`（改版本号要审核）
+- [x] **05 · dbt gold**（2026-10-08 完成，用户亲手运行并提交 3774598，CI 全绿：`dbt build` PASS=25（4 个 staging 视图、3 张 gold 表、1 个单元测试、17 个数据测试）；16% 的 DMS 位置编号和 UniProt 不一致，97.9% 换算成功、0 错，2.1% 留空；dbt 用 `databricks auth token` 的一小时令牌）
 - [x] **04 · Databricks 湖仓**（2026-10-08 完成，用户亲手运行并提交 0714e8e，CI 全绿：`databricks/` bundle 两个任务：`training_data`（ProteinGym + UniProt + ClinVar，约 4 分钟，6 条质检全过：69.6 万个单点突变、217 个实验、80 个人类蛋白）和 `old_predictions`（旧全蛋白组预测，20 个蛋白试通，09 号再跑）；由用户在 04 号亲手运行 training_data）
 - [x] **03b · 公开数据进货**（已写好：`config/sources.toml` 7 个文件，送货员 Lambda `qafi-dev-raw-fetcher`，`infra/dev/fetch.tf`）
 - [x] **03 · 数据接入**（已写好：S3 事件 → Lambda `qafi-dev-raw-validator` 验货、`_registry/` 收货单、分块上传 + CRC64NVME 指纹核对；`infra/dev/ingest.tf` 新增 8 个资源）

@@ -1,7 +1,7 @@
 # Databricks Asset Bundle: everything this project runs on Databricks, defined as code.
 #   databricks bundle validate   check the definitions
-#   databricks bundle deploy     create or update the schemas, volume and job in the workspace
-#   databricks bundle run raw_to_silver
+#   databricks bundle deploy     create or update the schemas, volume and jobs in the workspace
+#   databricks bundle run training_data
 # Run from this folder. The workspace URL lives in the CLI profile, not in git.
 
 bundle:
@@ -10,10 +10,24 @@ bundle:
 include:
   - resources/*.yml
 
+# Deploying also copies the dbt project (next to this folder), so the job's dbt task can run it.
+sync:
+  paths:
+    - .
+    - ../dbt
+
 variables:
   catalog:
     description: Unity Catalog catalog of this environment (created once in notebook 04)
     default: qafi_dev
+  warehouse_id:
+    description: SQL warehouse that runs dbt's SQL; looked up by name, so no ID is written down
+    lookup:
+      warehouse: Serverless Starter Warehouse
+  airflow_sp:
+    description: Airflow's machine identity (created in notebook 06); its application ID, looked up by name
+    lookup:
+      service_principal: qafi-airflow
 
 targets:
   dev:

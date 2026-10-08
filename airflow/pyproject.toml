@@ -1,0 +1,21 @@
+# Airflow for notebook 06, in its own environment: Airflow pins hundreds of packages, and they must not
+# decide the versions used by the rest of the project. Run Airflow through airflow.sh, which sets the
+# project's configuration; the DAG imports the project's code from ../src.
+
+[project]
+name = "qafi-airflow"
+version = "0.1.0"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "apache-airflow==3.3.2",
+    "apache-airflow-providers-amazon==9.37.0",      # AWS: Secrets Manager as the place connections come from
+    "apache-airflow-providers-databricks==7.21.0",  # start a Databricks job and wait for it
+    "boto3[crt]",                                   # the crt extra reads `aws login` sessions
+    "databricks-sdk",
+]
+
+[dependency-groups]
+dev = ["pytest>=9.1.1", "moto[secretsmanager]>=5.0"]
+
+[tool.uv]
+package = false

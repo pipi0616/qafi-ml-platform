@@ -23,6 +23,17 @@ def s3(monkeypatch):
 
 
 @pytest.fixture
+def secretsmanager(monkeypatch):
+    """A Secrets Manager client talking to moto's in-memory fake."""
+    for var in ("AWS_PROFILE", "AWS_ENDPOINT_URL"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setenv("AWS_ACCESS_KEY_ID", "testing")
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "testing")
+    with mock_aws():
+        yield boto3.client("secretsmanager", region_name="eu-central-1")
+
+
+@pytest.fixture
 def publisher():
     """A local web server standing in for a data publisher: ``publisher.serve(name, data)`` returns a URL.
 

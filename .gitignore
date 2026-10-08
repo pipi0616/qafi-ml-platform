@@ -40,3 +40,6 @@ dbt/logs/
 
 # Databricks Asset Bundles: local deployment state
 databricks/.databricks/
+
+# Airflow: local database, logs and generated login (notebook 06)
+airflow/.airflow/

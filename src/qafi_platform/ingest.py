@@ -8,7 +8,8 @@ local file, which proves the cloud copy is identical byte for byte. The Lambda i
 
 Public datasets listed in ``config/sources.toml`` don't pass through the laptop: the fetcher
 Lambda in ``raw_fetcher.py`` copies them from the publisher straight into the raw bucket, and the
-same validator checks them.
+same validator checks them. ``newest_releases`` finds the newest release of the datasets that
+refresh monthly; notebook 06's Airflow DAG runs it on a schedule.
 
 These helpers print progress because they are run interactively from notebooks.
 """
@@ -21,7 +22,9 @@ import tempfile
 import threading
 import time
 import tomllib
-from datetime import UTC, datetime, timedelta
+import urllib.error
+import urllib.request
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
 from boto3.s3.transfer import TransferConfig
@@ -179,20 +182,69 @@ def smoke_test(s3, bucket: str) -> list[dict]:
     return receipts
 
 
-def load_sources(path: Path) -> list[dict]:
-    """One entry per file in ``config/sources.toml``: dataset, version, official URL and raw key."""
+def load_sources(path: Path, versions: dict[str, str] | None = None) -> list[dict]:
+    """One entry per file in ``config/sources.toml``: dataset, version, refresh, official URL and raw key.
+
+    ``versions`` replaces pinned versions, e.g. ``{"clinvar": "2026-11"}``; URLs follow through ``{version}``.
+    """
     with open(path, "rb") as f:
         datasets = tomllib.load(f)["dataset"]
-    return [
-        {
-            "dataset": d["name"],
-            "version": d["version"],
-            "url": url,
-            "key": raw_key(d["name"], d["version"], url.rsplit("/", 1)[-1]),
-        }
+    sources = []
+    for d in datasets:
+        version = (versions or {}).get(d["name"], d["version"])
+        for template in d["urls"]:
+            url = template.format(version=version)
+            sources.append(
+                {
+                    "dataset": d["name"],
+                    "version": version,
+                    "refresh": d["refresh"],
+                    "url": url,
+                    "key": raw_key(d["name"], version, url.rsplit("/", 1)[-1]),
+                }
+            )
+    return sources
+
+
+def _published(url: str) -> bool:
+    """Whether the publisher serves ``url``. Only asks (HEAD); nothing is downloaded."""
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url, method="HEAD"), timeout=30):
+            return True
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            return False
+        raise
+
+
+def newest_monthly_release(url_template: str, today: date, oldest: str) -> str:
+    """The newest month (``YYYY-MM``) the publisher has released, never older than ``oldest``.
+
+    Tries this month first, then the two before it: a monthly release appears during the first days of
+    its month, so early in a month the previous one is still the newest.
+    """
+    for back in range(3):
+        year, month = divmod(today.year * 12 + today.month - 1 - back, 12)
+        version = f"{year}-{month + 1:02d}"
+        if version <= oldest:
+            return oldest
+        if _published(url_template.format(version=version)):
+            return version
+    raise RuntimeError(f"no monthly release found in the 3 months before {today}: {url_template}")
+
+
+def newest_releases(path: Path, today: date) -> dict[str, str]:
+    """The newest release of each dataset with ``refresh = "monthly"``; pass it on to ``load_sources``.
+
+    Other datasets keep the versions pinned in the file (some, like AlphaFold, pin more than one).
+    """
+    with open(path, "rb") as f:
+        datasets = tomllib.load(f)["dataset"]
+    return {
+        d["name"]: newest_monthly_release(d["urls"][0], today, oldest=d["version"])
         for d in datasets
-        for url in d["urls"]
-    ]
+        if d["refresh"] == "monthly"
+    }
 
 
 def _current_receipt(s3, bucket: str, key: str) -> dict | None:

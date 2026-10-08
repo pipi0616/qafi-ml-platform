@@ -3,6 +3,7 @@ from types import SimpleNamespace as NS
 from urllib.parse import parse_qs, urlparse
 
 import pytest
+from botocore.exceptions import ClientError
 
 from qafi_platform import lakehouse
 
@@ -90,3 +91,63 @@ def test_dbt_env_uses_a_short_lived_token_from_the_cli(monkeypatch):
         "DATABRICKS_TOKEN": "one-hour-token",
     }
     assert calls == [["databricks", "auth", "token", "--profile", "qafi", "-o", "json"]]
+
+
+SECRET = "airflow/connections/databricks_default"
+
+
+class _FakeDatabricks:
+    """Records what create_machine_identity asks of Databricks, which hands out the secret 'oauth-secret'."""
+
+    def __init__(self, existing: bool = False):
+        sp = NS(id="7", application_id="app-1")
+        self.created, self.deleted, self.lifetimes, self.secrets = [], [], [], [NS(id="old")]
+
+        def create_secret(service_principal_id, lifetime):
+            self.lifetimes.append(lifetime)
+            self.secrets.append(NS(id="new"))
+            return NS(id="new", secret="oauth-secret")
+
+        def delete_secret(service_principal_id, secret_id):
+            self.deleted.append(secret_id)
+            self.secrets = [s for s in self.secrets if s.id != secret_id]
+
+        self.config = NS(host="https://workspace")
+        self.service_principals = NS(
+            list=lambda filter: [sp] if existing else [],
+            create=lambda **kw: self.created.append(kw) or sp,
+        )
+        self.service_principal_secrets_proxy = NS(
+            create=create_secret, list=lambda service_principal_id: list(self.secrets), delete=delete_secret
+        )
+
+
+def test_the_secret_goes_straight_into_secrets_manager_as_an_airflow_connection(secretsmanager, capsys):
+    secretsmanager.create_secret(Name=SECRET)
+    w = _FakeDatabricks()
+    assert lakehouse.create_machine_identity(w, secretsmanager, "qafi-airflow", SECRET) == "app-1"
+    assert json.loads(secretsmanager.get_secret_value(SecretId=SECRET)["SecretString"]) == {
+        "conn_type": "databricks",
+        "host": "https://workspace",
+        "login": "app-1",
+        "password": "oauth-secret",
+        "extra": {"service_principal_oauth": True},
+    }
+    assert w.created[0]["display_name"] == "qafi-airflow"
+    assert w.lifetimes == ["7776000s"]  # valid for 90 days
+    assert w.deleted == ["old"]  # rotation: the older secret is revoked
+    assert "oauth-secret" not in capsys.readouterr().out
+
+
+def test_running_again_keeps_the_identity(secretsmanager):
+    secretsmanager.create_secret(Name=SECRET)
+    w = _FakeDatabricks(existing=True)
+    lakehouse.create_machine_identity(w, secretsmanager, "qafi-airflow", SECRET)
+    assert w.created == []
+
+
+def test_a_secret_that_cannot_be_stored_is_revoked(secretsmanager):
+    w = _FakeDatabricks()  # the secret does not exist in Secrets Manager yet, so storing fails
+    with pytest.raises(ClientError):
+        lakehouse.create_machine_identity(w, secretsmanager, "qafi-airflow", SECRET)
+    assert w.deleted == ["new"]

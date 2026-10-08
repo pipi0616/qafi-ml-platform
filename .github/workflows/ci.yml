@@ -38,6 +38,15 @@ jobs:
       # Unit tests check the code; golden tests re-derive the paper's published numbers.
       - run: uv run pytest -q
 
+  # The Airflow DAG must load: a DAG file with an error silently stops all of its scheduled runs.
+  # Airflow has its own environment (airflow/pyproject.toml).
+  airflow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0 # full version: setup-uv publishes no floating major tags
+      - run: uv run --project airflow --frozen pytest airflow/tests -q
+
   terraform:
     runs-on: ubuntu-latest
     steps:

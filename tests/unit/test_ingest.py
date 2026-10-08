@@ -1,5 +1,6 @@
 import json
 import os
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -106,3 +107,52 @@ def test_uploading_the_same_file_again_is_skipped(s3, tmp_path, capsys):
     assert len(s3.list_object_versions(Bucket=BUCKET, Prefix=key)["Versions"]) == 1
     forced = ingest.upload(s3, path, BUCKET, key, progress=False, force=True)
     assert forced["version_id"] != first["version_id"]
+
+
+def test_a_new_version_changes_the_url_and_the_raw_folder():
+    config = Path(__file__).parents[2] / "config" / "sources.toml"
+    sources = {s["dataset"]: s for s in ingest.load_sources(config, {"clinvar": "2026-11"})}
+    assert sources["clinvar"]["url"].endswith("/variant_summary_2026-11.txt.gz")
+    assert sources["clinvar"]["key"] == "datasets/clinvar/2026-11/variant_summary_2026-11.txt.gz"
+    assert sources["proteingym"]["version"] == "v1.3"  # datasets not named keep their pinned version
+
+
+def _monthly(publisher, *months):
+    """A publisher that has released the given months; returns the URL template of its monthly file."""
+    for month in months:
+        url = publisher.serve(f"variant_summary_{month}.txt.gz", b"x")
+    return url.replace(months[-1], "{version}")
+
+
+def test_the_newest_published_month_is_found(publisher):
+    template = _monthly(publisher, "2026-10", "2026-11")
+    assert ingest.newest_monthly_release(template, date(2026, 11, 20), oldest="2026-10") == "2026-11"
+    # early in December the December release is not out yet: November is still the newest
+    assert ingest.newest_monthly_release(template, date(2026, 12, 2), oldest="2026-10") == "2026-11"
+
+
+def test_never_older_than_the_pinned_version(publisher):
+    template = _monthly(publisher, "2026-09")
+    assert ingest.newest_monthly_release(template, date(2026, 10, 3), oldest="2026-10") == "2026-10"
+
+
+def test_no_release_for_three_months_is_an_error(publisher):
+    template = _monthly(publisher, "2026-01")
+    with pytest.raises(RuntimeError, match="no monthly release"):
+        ingest.newest_monthly_release(template, date(2026, 10, 3), oldest="2026-01")
+
+
+def test_only_monthly_datasets_move_to_a_newer_version(publisher, tmp_path):
+    template = _monthly(publisher, "2026-10", "2026-11")
+    config = tmp_path / "sources.toml"
+    config.write_text(
+        f'[[dataset]]\nname = "clinvar"\nversion = "2026-10"\nrefresh = "monthly"\nurls = ["{template}"]\n'
+        '[[dataset]]\nname = "proteingym"\nversion = "v1.3"\nrefresh = "manual"\nurls = ["https://x/{version}.zip"]\n'
+    )
+    assert ingest.newest_releases(config, date(2026, 11, 20)) == {"clinvar": "2026-11"}
+
+
+def test_a_dataset_pinned_twice_keeps_both_versions():
+    config = Path(__file__).parents[2] / "config" / "sources.toml"
+    sources = ingest.load_sources(config, {"clinvar": "2026-11"})
+    assert sorted(s["version"] for s in sources if s["dataset"] == "alphafold-human") == ["v4", "v6"]

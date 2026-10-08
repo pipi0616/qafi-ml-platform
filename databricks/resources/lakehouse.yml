@@ -1,7 +1,7 @@
-# Notebook 04: raw files -> bronze -> silver, on serverless compute. Two jobs:
+# Notebooks 04-06: raw files -> bronze -> silver -> gold, on serverless compute. Two jobs:
 #
-#   training_data (run now):
-#     copy_raw ──┬──▶ bronze_reference ──┬──▶ silver_dms ──▶ quality_checks (scope dms)
+#   training_data (04 and 05 in one job; Airflow starts it every month, notebook 06):
+#     copy_raw ──┬──▶ bronze_reference ──┬──▶ silver_dms ──▶ quality_checks (scope dms) ──▶ gold (dbt build)
 #                └──▶ bronze_dms ─────────┘
 #
 #   old_predictions (run in chapter 09, to compare old and new proteome-wide predictions;
@@ -14,6 +14,9 @@ resources:
       catalog_name: ${var.catalog}
       name: raw
       comment: Files copied from the AWS raw bucket, exactly as received
+      grants: # Airflow may enter this schema, to reach the volume below
+        - principal: ${var.airflow_sp}
+          privileges: [USE_SCHEMA]
     bronze:
       catalog_name: ${var.catalog}
       name: bronze
@@ -38,16 +41,43 @@ resources:
       name: files
       volume_type: MANAGED
       comment: Raw files under the same paths as in S3 (datasets/<dataset>/<version>/<file>)
+      grants: # Airflow puts the transfer list here (notebook 06); writing a file needs both privileges
+        - principal: ${var.airflow_sp}
+          privileges: [READ_VOLUME, WRITE_VOLUME]
 
   jobs:
     training_data:
       name: qafi training data
       max_concurrent_runs: 1
+      timeout_seconds: 3600 # a run that hangs is stopped after an hour instead of using up the quota
+      email_notifications:
+        on_failure: ["${workspace.current_user.userName}"] # resolved at deploy time, not written in git
+      # Airflow's machine identity may start this job and follow its runs; it cannot change it. The job
+      # still runs as its owner (you), so whoever holds the identity's secret can start it: the secret
+      # stays in AWS Secrets Manager and is replaced every 90 days (notebook 06).
+      permissions:
+        - service_principal_name: ${var.airflow_sp}
+          level: CAN_MANAGE_RUN
+      # Every run says which release of each dataset it loads. The defaults are the pinned versions in
+      # config/sources.toml; Airflow passes newer ones when a new release has come in.
       parameters:
         - name: catalog
           default: ${var.catalog}
+        - name: clinvar_version
+          default: "2026-10"
+        - name: uniprot_version
+          default: "2026_03"
+        - name: proteingym_version
+          default: "v1.3"
+      environments:
+        - environment_key: dbt
+          spec:
+            environment_version: "4"
+            dependencies: ["dbt-databricks>=1.12,<1.13"]
       tasks:
         - task_key: copy_raw
+          max_retries: 2 # downloads can fail for a moment; data problems are not retried
+          min_retry_interval_millis: 60000
           notebook_task:
             notebook_path: ../src/notebooks/copy_raw.py
         - task_key: bronze_reference
@@ -67,6 +97,16 @@ resources:
           notebook_task:
             notebook_path: ../src/notebooks/quality_checks.py
             base_parameters: { scope: dms }
+        # Notebook 05's dbt project, run on the SQL warehouse: the gold tables and their tests.
+        - task_key: gold
+          depends_on: [{ task_key: quality_checks }]
+          environment_key: dbt
+          dbt_task:
+            project_directory: ../../dbt
+            commands: ["dbt build"]
+            warehouse_id: ${var.warehouse_id}
+            catalog: ${var.catalog}
+            schema: gold
 
     old_predictions:
       name: qafi old proteome predictions

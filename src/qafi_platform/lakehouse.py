@@ -4,6 +4,7 @@ Free Edition cannot attach our S3 bucket, so raw files travel through temporary 
 ``transfer_links`` signs a read-only link per file (valid a few hours, no AWS key leaves the laptop)
 and ``upload_transfer_list`` puts the list into the volume, where the job's copy task reads it.
 ``sql`` runs a query on the workspace's SQL warehouse and returns a pandas DataFrame.
+``create_machine_identity`` gives Airflow its own Databricks identity, with the secret kept in AWS.
 
 ``w`` is a ``databricks.sdk.WorkspaceClient``; the SDK is only needed where these are called.
 """
@@ -40,6 +41,43 @@ def upload_transfer_list(w, catalog: str, links: dict[str, dict]) -> str:
     path = f"/Volumes/{catalog}/raw/files/_transfer/links.json"
     w.files.upload(path, io.BytesIO(json.dumps(links, indent=1).encode()), overwrite=True)
     return path
+
+
+def create_machine_identity(w, secrets, name: str, secret_id: str, days: int = 90) -> str:
+    """A service principal (machine identity) for Airflow, with its OAuth secret kept in AWS Secrets Manager.
+
+    The secret goes straight from Databricks into ``secret_id``, in the form of an Airflow connection: it
+    is never printed or written to disk. Running this again keeps the identity, stores a new secret and
+    revokes the older ones, which is how the secret is rotated. Returns the application ID, the name
+    Databricks permissions use for the identity.
+    """
+    from databricks.sdk.service.iam import ComplexValue
+
+    found = list(w.service_principals.list(filter=f'displayName eq "{name}"'))
+    if found:
+        sp = found[0]
+    else:  # workspace-access: without it the identity cannot call any workspace API
+        sp = w.service_principals.create(
+            display_name=name, active=True, entitlements=[ComplexValue(value="workspace-access")]
+        )
+    secret = w.service_principal_secrets_proxy.create(service_principal_id=sp.id, lifetime=f"{days * 86400}s")
+    connection = {
+        "conn_type": "databricks",
+        "host": w.config.host,
+        "login": sp.application_id,
+        "password": secret.secret,
+        "extra": {"service_principal_oauth": True},
+    }
+    try:
+        secrets.put_secret_value(SecretId=secret_id, SecretString=json.dumps(connection))
+    except Exception:
+        # not stored, so nobody can use it: revoke it rather than leave a valid secret behind
+        w.service_principal_secrets_proxy.delete(service_principal_id=sp.id, secret_id=secret.id)
+        raise
+    for old in w.service_principal_secrets_proxy.list(service_principal_id=sp.id):
+        if old.id != secret.id:
+            w.service_principal_secrets_proxy.delete(service_principal_id=sp.id, secret_id=old.id)
+    return sp.application_id
 
 
 def warehouse_id(w) -> str:
