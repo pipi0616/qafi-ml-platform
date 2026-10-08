@@ -1,6 +1,7 @@
 # dbt project: gold tables built from silver with SQL, each with tests and documentation (notebook 05).
 #   staging/  light cleaning of each source, one view per source table (schema staging)
 #   marts/    the gold tables, organised by use: dimensions (dim_) and facts (fct_)
+#   seeds/    small fixed tables kept in git, such as the locked train/test split (notebook 07a)
 # Run from this folder:  dbt build  (models and tests, in dependency order)
 
 name: qafi
@@ -10,6 +11,7 @@ profile: qafi
 model-paths: ["models"]
 macro-paths: ["macros"]
 test-paths: ["tests"]
+seed-paths: ["seeds"]
 
 models:
   qafi:
@@ -22,3 +24,10 @@ models:
     marts:
       +materialized: table
       +schema: gold
+
+seeds:
+  qafi:
+    +schema: gold
+    +persist_docs:
+      relation: true
+      columns: true

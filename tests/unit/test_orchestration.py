@@ -108,10 +108,10 @@ def test_waits_for_the_given_run_and_lists_its_tasks_in_order(root, monkeypatch)
                     for task, start, end in ran
                 ]
             }
-        assert path == "/dags/qafi_refresh/dagRuns/new"
+        assert path == "/dags/qafi_refresh/dagRuns/manual__2026-10-08T16%3A10%3A15%2B00%3A00"
         return {"dag_run_id": "new", "state": next(states)}
 
     monkeypatch.setattr(orchestration, "_api", fake_api)
     monkeypatch.setattr(orchestration.time, "sleep", lambda s: None)
-    df = orchestration.wait_for_dag_run(Path("."), "qafi_refresh", "new")
+    df = orchestration.wait_for_dag_run(Path("."), "qafi_refresh", "manual__2026-10-08T16:10:15+00:00")
     assert list(df["task_id"]) == ["fetch_new_releases", "run_lakehouse_job"]

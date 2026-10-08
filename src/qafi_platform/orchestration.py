@@ -19,6 +19,7 @@ import subprocess
 import time
 import urllib.request
 from pathlib import Path
+from urllib.parse import quote
 
 import pandas as pd
 
@@ -108,9 +109,10 @@ def wait_for_dag_run(root: Path, dag_id: str, run_id: str, timeout: int = 1800) 
     """Wait until the run ``run_id`` of ``dag_id`` has finished; one row per task, in the order they ran."""
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        run = _api(root, "GET", f"/dags/{dag_id}/dagRuns/{run_id}")
+        run = _api(root, "GET", f"/dags/{dag_id}/dagRuns/{quote(run_id, safe='')}")
         if run["state"] in ("success", "failed"):
-            tasks = _api(root, "GET", f"/dags/{dag_id}/dagRuns/{run_id}/taskInstances")["task_instances"]
+            path = f"/dags/{dag_id}/dagRuns/{quote(run_id, safe='')}/taskInstances"
+            tasks = _api(root, "GET", path)["task_instances"]
             print(f"{run_id}: {run['state']}")
             columns = ["task_id", "state", "start_date", "end_date"]
             return pd.DataFrame(tasks)[columns].sort_values("start_date", ignore_index=True)

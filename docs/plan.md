@@ -44,7 +44,7 @@
 | 4 | 数据处理和机器学习在 Databricks Free Edition | 公司用得最多的数据平台；免费版功能够用 |
 | 5 | 预测结果批量算好，API 只查表 | 输入空间可枚举（约 2 亿个替换），特征计算重 |
 | 6 | 对外 API 和 GenAI 放在 AWS | 公司里对外服务一般不放在数据平台里；Bedrock 是 AWS 上 GenAI 的标准入口 |
-| 7 | **最终目标：用新流程重新预测全蛋白组**；训练数据和全蛋白组的特征都从 raw 重算 | 现有全蛋白组预测是旧方法算的，不一定对，只作对照（09 号新旧对比）。2 万个蛋白的结构、MSA、ESM 特征计算量很大，07 号先评估免费额度能撑住哪些、怎么分批 |
+| 7 | **最终目标：用新流程重新预测全蛋白组**；训练数据和全蛋白组的特征都从 raw 重算 | 现有全蛋白组预测是旧方法算的，不一定对，只作对照（09 号新旧对比）。**2026-10-08 你决定：特征按公司标准重写，加入深度学习，不搬旧代码**（旧代码依赖 PSI-BLAST、Arpeggio 和复现不了的统计表，还有泄漏问题）。新特征：ESM-2 语言模型 + AlphaFold 结构 + 理化，全蛋白组也能算 |
 | 8 | 所有原始数据只从官方来源进 raw，版本写死 | 可复现、可追溯；以前自己整理的文件只当参照答案，不当数据源 |
 
 ## 3 · 文件夹结构和三条工作规则
@@ -84,9 +84,9 @@ qafi-ml-platform/
 | 04 | Databricks | 湖仓：raw 文件进 Unity Catalog → bronze Delta 表 → silver。主线是**训练集**（ProteinGym DMS：一个实验里的一个单点突变一行，核对序列）和参考数据（UniProt、ClinVar）；旧的全蛋白组预测做成单独的任务，09 号再跑。一切从 raw 出发，以前自己整理的文件只当参照答案 | Unity Catalog、Delta、Spark、Asset Bundles |
 | 05 | Databricks | dbt：gold 层星型模型（`dim_protein`、`dim_dms_assay`、`fct_dms_measurement`）；DMS 位置换算成 UniProt 编号（AlphaFold 用的编号）；单元测试 + 数据测试；说明写进 Unity Catalog；CI 跑 `dbt parse` | dbt-databricks |
 | 06 | Databricks + AWS | 编排：Lakeflow Jobs 串起 04–05；本机 Airflow 定时触发这个 Job，并按数据源清单的 `refresh` 定时进新版本；Databricks 令牌存在 AWS Secrets Manager | Lakeflow Jobs、Airflow、Secrets Manager |
-| 07 | Databricks | 特征和实验：从 raw 算特征（AlphaFold 结构、序列；先训练集的蛋白，再评估全蛋白组怎么算），和论文用的版本对照；科学代码搬进 `src/qafi_core`（黄金测试保证没搬坏）；防泄漏交叉验证；每次实验记进 MLflow | MLflow |
-| 08 | Databricks | 训练 → 质量闸门（复现不了论文数字就不注册）→ 模型注册 | MLflow、Unity Catalog 模型 |
-| 09 | Databricks | **用新模型给全蛋白组重新预测**（批量打分），和旧的全蛋白组预测逐个对照（04 号准备好的 old_predictions 任务）；漂移检查和告警 | MLflow、Spark |
+| 07 | Databricks | 特征和基线，分 5 小步、一次一步：**07a** 设计（特征清单、标签、考试规则，锁住测试蛋白）→ **07b** 标签（Gray 标准化）→ **07c** AlphaFold 结构特征和图 → **07d** ESM-2 语言模型特征 → **07e** 特征表 + 树模型基线 + MLflow，和旧论文对照。新代码写在 `src/qafi_core` | 特征工程、分组交叉验证、dbt seed、MLflow |
+| 08 | Databricks | 深度学习：**08a** PyTorch 入门（ESM 向量 + 小网络）→ **08b** 图神经网络（AlphaFold 结构图）→ **08c** 微调 ESM-2（LoRA，GPU）；同一套考试规则，必须比 07e 的基线好 | PyTorch、PyTorch Geometric、Hugging Face、LoRA、MLflow |
+| 09 | Databricks | 选模型 → 质量闸门（测试蛋白上的成绩）→ Unity Catalog 模型注册 → **用新模型给全蛋白组重新预测**（批量打分），和旧的全蛋白组预测逐个对照（04 号准备好的 old_predictions 任务）；漂移检查和告警 | MLflow、Unity Catalog 模型、Spark |
 | 10 | AWS | 服务：gold 预测表导出到 S3 lake；Glue Catalog + Athena 用 SQL 查；FastAPI 容器部署到 Lambda + API Gateway | Athena、Glue、ECR、Lambda、API Gateway |
 | 11 | AWS | RAG：Bedrock Knowledge Base 收录 UniProt 注释和你的论文 | Bedrock |
 | 12 | AWS | Agent：调用预测 API、知识库等工具；Guardrails；评估 | Bedrock Agents、Guardrails |
@@ -139,7 +139,8 @@ qafi-ml-platform/
 - [x] **00 · 云账号与安全基线**（2026-10-07 完成：MFA、预算报警、账户级 S3 禁止公开）
 - [x] **01 · Terraform**（2026-10-07 完成：21 个资源已 apply）
 - [x] **02 · 工程化代码库 + CI/CD**（2026-10-08 完成：CI 5 项全绿，OIDC 登录 AWS 成功；修过两次红：`setup-uv@v10` 标签不存在、GitHub 改用带永久编号的 OIDC 写法）
-- [ ] **06 · 编排** ← 当前（2026-10-08 写好并试通，由用户在 06 号运行）
+- [ ] **07a · 设计** ← 当前（2026-10-08 写好并试通，由用户运行：旧 28 个特征逐个评估；考试规则：整个蛋白留出、近亲同组（E < 1e-5、≥30% 一致、覆盖 ≥50%）；演示：随机切分 0.485 vs 按蛋白 0.43；测试蛋白 15 个（含 TP53、BRCA1/2、HRAS+KRAS），锁成 dbt seed `protein_split`）
+- [x] **06 · 编排**（2026-10-08 完成，用户亲手运行并提交 3b8a255，CI 6 项全绿含新的 `airflow` 检查；第一次由机器身份 `qafi-airflow` 跑通整条：进新版本 → 放提货单 → Databricks 6 步）
   - Lakeflow Job `training_data` 末尾加了 dbt 任务 `gold`，在 Job 里 PASS=25。Job 带版本参数，`copy_raw` 失败重试，超时 1 小时，失败发邮件
   - Airflow 3.3 在单独的环境里（`airflow/`），DAG `qafi_refresh` 每月 10 号运行：进新版本 → 放提货单 → 启动 Job。本机试跑 3 个任务全过，Job 6 步全过
   - Airflow 用机器身份 `qafi-airflow`（OAuth M2M）进 Databricks，密钥在 AWS Secrets Manager（`airflow/connections/databricks_default`），90 天轮换；只能启动这一个 Job、往 raw 文件区放提货单
