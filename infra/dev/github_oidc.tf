@@ -5,10 +5,12 @@
 # assume the role. The role's permissions are read-only for now; later notebooks add
 # what the pipelines need.
 
-variable "github_repo" {
-  description = "GitHub repository allowed to assume the CI role, as owner/name"
+variable "github_sub_prefix" {
+  description = "Subject prefix of this repository's GitHub OIDC tokens; look it up with: gh api repos/OWNER/REPO/actions/oidc/customization/sub"
   type        = string
-  default     = "pipi0616/qafi-ml-platform"
+  # GitHub's immutable subject format: owner and repository carry their numeric IDs, so a
+  # deleted and re-created repository with the same name cannot assume the role.
+  default = "repo:pipi0616@147825483/qafi-ml-platform@1409257726"
 }
 
 resource "aws_iam_openid_connect_provider" "github" {
@@ -35,7 +37,7 @@ data "aws_iam_policy_document" "github_trust" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["repo:${var.github_repo}:*"]
+      values   = ["${var.github_sub_prefix}:*"]
     }
   }
 }

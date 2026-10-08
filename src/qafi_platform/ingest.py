@@ -65,19 +65,45 @@ class _Progress:
                 self.next_mark = pct - pct % 5 + 5
 
 
-def upload(s3, path: Path, bucket: str, key: str, progress: bool = True, source: str | None = None) -> dict:
+def upload(
+    s3,
+    path: Path,
+    bucket: str,
+    key: str,
+    progress: bool = True,
+    source: str | None = None,
+    force: bool = False,
+) -> dict:
     """Upload ``path`` with a CRC64NVME checksum and prove the stored copy is identical.
 
     ``source`` says where a non-public file came from; it is stored with the object and the
     validator copies it into the receipt (ASCII only: S3 metadata travels as HTTP headers).
     Files above ``PART_SIZE`` go up as a multipart upload. Raises if S3's checksum differs
     from the local one; otherwise returns what was stored.
+
+    Idempotent: if the raw bucket already holds an accepted copy with the same checksum, nothing
+    is uploaded and the existing copy is returned (``force`` uploads a new version anyway).
     """
     path = Path(path)
     size = path.stat().st_size
     local = crc64nvme(path)
     if progress:
         print(f"local CRC64NVME  {local}  ({size / 1e9:.2f} GB)")
+    existing = None if force else _current_receipt(s3, bucket, key)
+    if (
+        existing
+        and existing["status"] == "accepted"
+        and existing.get("checksum") == {"algorithm": "CRC64NVME", "value": local}
+    ):
+        if progress:
+            print(f"already in raw with the same checksum (checked {existing['checked_at']}): skipped")
+        return {
+            "key": key,
+            "size_bytes": size,
+            "crc64nvme": local,
+            "version_id": existing["version_id"],
+            "etag": s3.head_object(Bucket=bucket, Key=key, VersionId=existing["version_id"])["ETag"],
+        }
     extra = {"ChecksumAlgorithm": "CRC64NVME"} | ({"Metadata": {"source": source}} if source else {})
     s3.upload_file(
         str(path),
@@ -143,7 +169,9 @@ def smoke_test(s3, bucket: str) -> list[dict]:
         bad = Path(tmp, "smoke_bad.tsv.gz")  # named .gz but is plain text
         bad.write_bytes(b"gene\tvariant\tscore\nTP53\tR175H\t0.97\n")
         for path in (good, bad):
-            stored = upload(s3, path, bucket, raw_key("smoke-test", "v1", path.name), progress=False)
+            stored = upload(
+                s3, path, bucket, raw_key("smoke-test", "v1", path.name), progress=False, force=True
+            )
             receipt = wait_for_receipt(s3, bucket, stored["key"], stored["version_id"], timeout=120)
             reason = f": {'; '.join(receipt['problems'])}" if receipt["problems"] else ""
             print(f"{receipt['key']:<42} {receipt['status']}{reason}")

@@ -89,3 +89,20 @@ def test_fetching_again_skips_files_already_in_raw(s3, publisher, capsys):
     assert again == first
     assert "skipped" in capsys.readouterr().out
     assert len(s3.list_object_versions(Bucket=BUCKET, Prefix="datasets/")["Versions"]) == 1  # copied once
+
+
+def test_uploading_the_same_file_again_is_skipped(s3, tmp_path, capsys):
+    path = tmp_path / "data.tsv"
+    path.write_bytes(b"gene\tscore\nTP53\t0.9\n")
+    key = ingest.raw_key("qafi-predictions", "v1.0", path.name)
+    first = ingest.upload(s3, path, BUCKET, key)
+    obj = {"key": key, "versionId": first["version_id"]}
+    process(
+        {"Records": [{"s3": {"bucket": {"name": BUCKET}, "object": obj}}]}, s3
+    )  # the receipt S3 + Lambda write
+    again = ingest.upload(s3, path, BUCKET, key)
+    assert again == first
+    assert "skipped" in capsys.readouterr().out
+    assert len(s3.list_object_versions(Bucket=BUCKET, Prefix=key)["Versions"]) == 1
+    forced = ingest.upload(s3, path, BUCKET, key, progress=False, force=True)
+    assert forced["version_id"] != first["version_id"]
