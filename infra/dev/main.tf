@@ -18,6 +18,10 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
+    archive = {
+      source  = "hashicorp/archive" # zips the Lambda code in ingest.tf
+      version = "~> 2.8"
+    }
   }
 }
 

@@ -58,4 +58,4 @@ tests/          unit · data · golden (published numbers)
 
 ## Status
 
-In progress; see [`docs/plan.md`](docs/plan.md). Done: 00 account baseline. Current: 01 Terraform, then 02 engineering + CI/CD.
+In progress; see [`docs/plan.md`](docs/plan.md). Done: 00 account baseline, 01 Terraform, 02 engineering + CI/CD. Current: 03 raw ingestion (S3 event → Lambda validator with a receipt registry) and 03b config-driven ingestion of public datasets (ClinVar, UniProt, ProteinGym, AlphaFold) straight from the publishers.
