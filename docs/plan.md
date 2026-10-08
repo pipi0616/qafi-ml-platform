@@ -84,7 +84,7 @@ qafi-ml-platform/
 | 04 | Databricks | 湖仓：raw 文件进 Unity Catalog → bronze Delta 表 → silver。主线是**训练集**（ProteinGym DMS：一个实验里的一个单点突变一行，核对序列）和参考数据（UniProt、ClinVar）；旧的全蛋白组预测做成单独的任务，09 号再跑。一切从 raw 出发，以前自己整理的文件只当参照答案 | Unity Catalog、Delta、Spark、Asset Bundles |
 | 05 | Databricks | dbt：gold 层星型模型（`dim_protein`、`dim_dms_assay`、`fct_dms_measurement`）；DMS 位置换算成 UniProt 编号（AlphaFold 用的编号）；单元测试 + 数据测试；说明写进 Unity Catalog；CI 跑 `dbt parse` | dbt-databricks |
 | 06 | Databricks + AWS | 编排：Lakeflow Jobs 串起 04–05；本机 Airflow 定时触发这个 Job，并按数据源清单的 `refresh` 定时进新版本；Databricks 令牌存在 AWS Secrets Manager | Lakeflow Jobs、Airflow、Secrets Manager |
-| 07 | Databricks | 特征和基线，分 5 小步、一次一步：**07a** 设计（特征清单、标签、考试规则，锁住测试蛋白）→ **07b** 标签（Gray 标准化）→ **07c** AlphaFold 结构特征和图 → **07d** ESM-2 语言模型特征 → **07e** 特征表 + 树模型基线 + MLflow，和旧论文对照。新代码写在 `src/qafi_core` | 特征工程、分组交叉验证、dbt seed、MLflow |
+| 07 | Databricks | 特征和基线，一次一小步：**07a** 设计（特征清单、考试规则，锁住测试蛋白）→ **07b** 新数据 MaveDB（整库打包进 raw 和 bronze）→ **07c** 标签（同义突变 = 1、无义突变 = 0 两把刻度）→ **07d** AlphaFold 结构特征和图 → **07e** ESM-2 语言模型特征 → **07f** 特征表 + 树模型基线 + MLflow，和旧论文对照（含加不加 Domainome 的对照实验）。新代码写在 `src/qafi_core` | 特征工程、分组交叉验证、dbt seed、数据接入、MLflow |
 | 08 | Databricks | 深度学习：**08a** PyTorch 入门（ESM 向量 + 小网络）→ **08b** 图神经网络（AlphaFold 结构图）→ **08c** 微调 ESM-2（LoRA，GPU）；同一套考试规则，必须比 07e 的基线好 | PyTorch、PyTorch Geometric、Hugging Face、LoRA、MLflow |
 | 09 | Databricks | 选模型 → 质量闸门（测试蛋白上的成绩）→ Unity Catalog 模型注册 → **用新模型给全蛋白组重新预测**（批量打分），和旧的全蛋白组预测逐个对照（04 号准备好的 old_predictions 任务）；漂移检查和告警 | MLflow、Unity Catalog 模型、Spark |
 | 10 | AWS | 服务：gold 预测表导出到 S3 lake；Glue Catalog + Athena 用 SQL 查；FastAPI 容器部署到 Lambda + API Gateway | Athena、Glue、ECR、Lambda、API Gateway |
@@ -139,7 +139,8 @@ qafi-ml-platform/
 - [x] **00 · 云账号与安全基线**（2026-10-07 完成：MFA、预算报警、账户级 S3 禁止公开）
 - [x] **01 · Terraform**（2026-10-07 完成：21 个资源已 apply）
 - [x] **02 · 工程化代码库 + CI/CD**（2026-10-08 完成：CI 5 项全绿，OIDC 登录 AWS 成功；修过两次红：`setup-uv@v10` 标签不存在、GitHub 改用带永久编号的 OIDC 写法）
-- [ ] **07a · 设计** ← 当前（2026-10-08 写好并试通，由用户运行：旧 28 个特征逐个评估；考试规则：整个蛋白留出、近亲同组（E < 1e-5、≥30% 一致、覆盖 ≥50%）；演示：随机切分 0.485 vs 按蛋白 0.43；测试蛋白 15 个（含 TP53、BRCA1/2、HRAS+KRAS），锁成 dbt seed `protein_split`）
+- [ ] **07b · 新数据 MaveDB** ← 当前（2026-10-08 写好并试通，由用户运行：Zenodo 整库打包 2026-06-25 版 1.91 GB 进 raw；bronze 三张表：2,777 组实验、820 万分数、321 万条 VEP 注释；人类当前蛋白实验 1,119 组，其中 Domainome 503 组/388 个蛋白，其他 616 组/74 个蛋白）
+- [x] **07a · 设计**（2026-10-08 完成，用户亲手运行并提交 1c790b9：旧 28 个特征逐个评估；考试规则；测试蛋白 15 个锁成 dbt seed `protein_split`）
 - [x] **06 · 编排**（2026-10-08 完成，用户亲手运行并提交 3b8a255，CI 6 项全绿含新的 `airflow` 检查；第一次由机器身份 `qafi-airflow` 跑通整条：进新版本 → 放提货单 → Databricks 6 步）
   - Lakeflow Job `training_data` 末尾加了 dbt 任务 `gold`，在 Job 里 PASS=25。Job 带版本参数，`copy_raw` 失败重试，超时 1 小时，失败发邮件
   - Airflow 3.3 在单独的环境里（`airflow/`），DAG `qafi_refresh` 每月 10 号运行：进新版本 → 放提货单 → 启动 Job。本机试跑 3 个任务全过，Job 6 步全过

@@ -2,7 +2,8 @@
 #
 #   training_data (04 and 05 in one job; Airflow starts it every month, notebook 06):
 #     copy_raw ──┬──▶ bronze_reference ──┬──▶ silver_dms ──▶ quality_checks (scope dms) ──▶ gold (dbt build)
-#                └──▶ bronze_dms ─────────┘
+#                ├──▶ bronze_dms ─────────┘
+#                └──▶ bronze_mavedb (notebook 07b)
 #
 #   old_predictions (run in chapter 09, to compare old and new proteome-wide predictions;
 #   needs the reference tables from training_data):
@@ -69,6 +70,8 @@ resources:
           default: "2026_03"
         - name: proteingym_version
           default: "v1.3"
+        - name: mavedb_version
+          default: "2026-06-25"
       environments:
         - environment_key: dbt
           spec:
@@ -88,6 +91,10 @@ resources:
           depends_on: [{ task_key: copy_raw }]
           notebook_task:
             notebook_path: ../src/notebooks/bronze_dms.py
+        - task_key: bronze_mavedb
+          depends_on: [{ task_key: copy_raw }]
+          notebook_task:
+            notebook_path: ../src/notebooks/bronze_mavedb.py
         - task_key: silver_dms
           depends_on: [{ task_key: bronze_reference }, { task_key: bronze_dms }]
           notebook_task:

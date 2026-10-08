@@ -31,6 +31,7 @@ JOB_PARAMETERS = {
     "clinvar": "clinvar_version",
     "uniprot-human": "uniprot_version",
     "proteingym": "proteingym_version",
+    "mavedb": "mavedb_version",
 }
 
 

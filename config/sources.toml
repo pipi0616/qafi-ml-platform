@@ -44,6 +44,13 @@ urls = [
 ]
 
 [[dataset]]
+name = "mavedb"
+version = "2026-06-25"  # Zenodo "MaveDB Bulk Download", record 20840937; data as of 2026-06-24
+refresh = "manual"      # a new dump every few months
+what = "All published CC0 MaveDB score sets: raw MAVE scores with synonymous and nonsense variants (label anchors), VEP annotations and variants mapped to human reference proteins (notebook 07b)"
+urls = ["https://zenodo.org/records/20840937/files/mavedb-dump.2026062418131.tar.gz"]
+
+[[dataset]]
 name = "alphafold-human"
 version = "v4"
 refresh = "manual"  # rare releases
