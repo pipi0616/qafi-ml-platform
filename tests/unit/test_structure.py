@@ -83,3 +83,23 @@ def test_the_archive_keeps_each_pdb_model_as_delivered(tmp_path):
         ["Q8WZ42", 2, "v6"],
     ]
     assert table["pdb_gz"].iloc[0] == data
+
+
+def test_half_sphere_exposure_matches_biopython(pdb_text):
+    from Bio.PDB import HSExposureCB, PDBParser
+
+    model = PDBParser(QUIET=True).get_structure("m", io.StringIO(pdb_text))[0]
+    HSExposureCB(model, radius=13.0)
+    expected = [(r.xtra["EXP_HSE_B_U"], r.xtra["EXP_HSE_B_D"]) for r in model.get_residues()]
+    f = structure.fragment_features(pdb_text)
+    assert list(zip(f["hse_up"], f["hse_down"], strict=True)) == expected
+
+
+def test_accessible_surface_area_matches_biopython(pdb_text):
+    from Bio.PDB import PDBParser
+    from Bio.PDB.SASA import ShrakeRupley
+
+    model = PDBParser(QUIET=True).get_structure("m", io.StringIO(pdb_text))[0]
+    ShrakeRupley().compute(model, level="R")
+    expected = [r.sasa for r in model.get_residues()]
+    assert structure.fragment_features(pdb_text)["sasa"].tolist() == pytest.approx(expected, abs=0.01)

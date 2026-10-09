@@ -160,7 +160,13 @@ resources:
         - name: alphafold_version
           default: "v6"
         - name: limit
-          default: "0" # proteins to compute, for a trial run; 0 = all
+          default: "0" # at most this many new proteins, for a trial run; 0 = all
+        - name: batch_size
+          default: "2000" # proteins per batch; each batch is saved before the next starts
+        - name: proteins_per_task
+          default: "20" # small tasks keep every core busy and let serverless add machines
+        - name: rebuild
+          default: "false" # true: compute every protein again (a new AlphaFold version)
       tasks:
         - task_key: copy_raw
           max_retries: 2
