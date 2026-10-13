@@ -37,6 +37,15 @@ resources:
       catalog_name: ${var.catalog}
       name: gold
       comment: Tables organised by use (dimensions and facts), built by dbt from silver (notebook 05)
+    ml:
+      catalog_name: ${var.catalog}
+      name: ml
+      comment: What the models produce - cross-validation scores and predictions (notebook 07f); registered models (09)
+
+  # One MLflow experiment for every model of this project, so their runs can be compared side by side.
+  experiments:
+    variant_effect:
+      name: /Users/${workspace.current_user.userName}/qafi-variant-effect
 
   volumes:
     files:
@@ -117,7 +126,9 @@ resources:
           environment_key: dbt
           dbt_task:
             project_directory: ../../dbt
-            commands: ["dbt build"]
+            # Everything but the feature tables: they also need the structure and language-model tables,
+            # which the jobs structures and language_model fill. The baseline job builds them.
+            commands: ["dbt build --exclude stg_residue_structure+ stg_residue_language_model+"]
             warehouse_id: ${var.warehouse_id}
             catalog: ${var.catalog}
             schema: gold
@@ -225,3 +236,42 @@ resources:
             hardware_accelerator: GPU_1xA10
           notebook_task:
             notebook_path: ../src/notebooks/silver_language_model.py
+
+    baseline:
+      name: qafi baseline model
+      max_concurrent_runs: 1
+      timeout_seconds: 3600
+      email_notifications:
+        on_failure: ["${workspace.current_user.userName}"]
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: experiment
+          default: ${resources.experiments.variant_effect.name}
+        - name: runs
+          default: all # names from qafi_core.baseline.RUNS, comma-separated; all = the baseline and its ablations
+        - name: n_folds
+          default: "5"
+        - name: code_version
+          default: ${bundle.git.commit} # recorded with every MLflow run: which code produced it
+      environments:
+        - environment_key: dbt
+          spec:
+            environment_version: "4"
+            dependencies: ["dbt-databricks>=1.12,<1.13"]
+      tasks:
+        # Needs gold.fct_variant_label (job training_data), silver.residue_structure (job structures) and
+        # silver.residue_language_model (job language_model).
+        - task_key: features
+          environment_key: dbt
+          dbt_task:
+            project_directory: ../../dbt
+            commands:
+              ["dbt build --select amino_acid blosum62 stg_residue_structure+ stg_residue_language_model+"]
+            warehouse_id: ${var.warehouse_id}
+            catalog: ${var.catalog}
+            schema: gold
+        - task_key: train_baseline
+          depends_on: [{ task_key: features }]
+          notebook_task:
+            notebook_path: ../src/notebooks/train_baseline.py

@@ -10,11 +10,13 @@ bundle:
 include:
   - resources/*.yml
 
-# Deploying also copies the dbt project (next to this folder), so the job's dbt task can run it.
+# Deploying also copies the dbt project (next to this folder), so the job's dbt task can run it, and the
+# science code (qafi_core), so the training notebook runs the same functions the tests check on a laptop.
 sync:
   paths:
     - .
     - ../dbt
+    - ../src/qafi_core
 
 variables:
   catalog:

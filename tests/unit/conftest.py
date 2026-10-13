@@ -1,3 +1,4 @@
+import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -6,6 +7,10 @@ import pytest
 from moto import mock_aws
 
 BUCKET = "test-raw"
+
+# PyTorch and XGBoost each bring their own OpenMP runtime on macOS. Used with several threads in one process,
+# as these tests do, the two crash each other (segmentation fault). One thread is plenty for tiny test data.
+os.environ.setdefault("OMP_NUM_THREADS", "1")
 
 
 @pytest.fixture
