@@ -12,6 +12,10 @@ sources:
         description: MaveDB human variants, one row per protein variant per score set, on UniProt numbering (notebook 07c).
       - name: mavedb_score_sets
         description: MaveDB human score sets kept for labels, one row per score set (notebook 07c).
+      - name: residue_structure
+        description: AlphaFold structure features of every residue of the human proteome, UniProt numbering (notebook 07d).
+      - name: residue_language_model
+        description: ESM-2 log-probabilities of the 20 amino acids at every residue of the human proteome (notebook 07e).
 
   - name: bronze
     database: "{{ target.database }}"

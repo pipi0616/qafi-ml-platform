@@ -29,3 +29,40 @@ seeds:
           - accepted_values:
               arguments:
                 values: [train, test]
+
+  - name: amino_acid
+    description: >
+      The 20 amino acids with the properties behind the substitution features (notebook 07f). Written by
+      qafi_core.features.amino_acid_table; a test checks the file is exactly what that function returns.
+    config:
+      column_types: { aa: string, hydrophobicity: double, volume: double, charge: int }
+    columns:
+      - name: aa
+        description: One-letter code.
+        data_tests: [unique, not_null]
+      - name: hydrophobicity
+        description: Kyte-Doolittle hydropathy (1982); positive = hydrophobic.
+        data_tests: [not_null]
+      - name: volume
+        description: Residue volume in cubic angstrom (Zamyatnin 1972).
+        data_tests: [not_null]
+      - name: charge
+        description: Charge at neutral pH (D and E -1, K and R +1, the others 0).
+        data_tests: [not_null]
+
+  - name: blosum62
+    description: >
+      BLOSUM62 score of every ordered pair of amino acids, 400 rows (notebook 07f): how often the exchange is
+      seen between related proteins. Written by qafi_core.features.blosum62_table.
+    config:
+      column_types: { ref_aa: string, alt_aa: string, score: int }
+    columns:
+      - name: ref_aa
+        description: Amino acid being replaced.
+        data_tests: [not_null]
+      - name: alt_aa
+        description: Amino acid replacing it.
+        data_tests: [not_null]
+      - name: score
+        description: BLOSUM62 score; positive = common in evolution, negative = rare.
+        data_tests: [not_null]

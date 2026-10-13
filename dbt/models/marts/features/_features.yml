@@ -1,0 +1,178 @@
+version: 2
+
+models:
+  - name: dim_residue
+    description: >
+      Residues of the proteins in the split, one row per residue: what the features need to know about a
+      position whatever the substitution - ESM-2's view of it, its place in the AlphaFold structure and how
+      conserved its neighbours in space are (notebook 07f). The same model, run with residue_scope = proteome,
+      feeds proteome-wide prediction, so training and prediction read identical values.
+    columns:
+      - name: uniprot_id
+        description: UniProt accession.
+        data_tests: [not_null]
+      - name: position
+        description: Position in the canonical UniProt sequence, starting at 1.
+        data_tests: [not_null]
+      - name: aa
+        description: Amino acid at this position (wild type).
+      - name: relative_position
+        description: Position divided by the protein's length; near 0 = start, 1 = end of the chain.
+      - name: logprobs
+        description: ESM-2 log-probability of each of the 20 amino acids here, in the order ACDEFGHIKLMNPQRSTVWY.
+      - name: esm_wt_logprob
+        description: ESM-2 log-probability of the amino acid that is actually here; near 0 = the model expects exactly it.
+      - name: esm_entropy
+        description: Entropy of ESM-2's 20 probabilities; 0 = one amino acid fits (conserved), 3.0 = any fits.
+        data_tests: [not_null]
+      - name: plddt
+        description: AlphaFold's confidence in this residue's position, 0-100; low values often mean disorder.
+      - name: rsa
+        description: Relative solvent accessibility; 0 = buried inside the protein, 1 = fully exposed.
+      - name: contacts_8
+        description: Residues with their C-beta within 8 angstrom.
+      - name: contacts_12
+        description: Residues with their C-beta within 12 angstrom.
+      - name: hse_up
+        description: Half-sphere exposure - C-alpha atoms within 13 angstrom on the side-chain side.
+      - name: hse_down
+        description: Half-sphere exposure - C-alpha atoms within 13 angstrom on the opposite side.
+      - name: neighbour_entropy
+        description: Mean esm_entropy of the residues within 10 angstrom; low = a conserved neighbourhood.
+
+  - name: fct_variant_features
+    description: >
+      The feature table: one row per labelled variant per dataset, with its label, its side of the split and
+      the features every model reads (notebook 07f). Features describe the substitution, the residue and its
+      surroundings; none is derived from a label. Models train on split = train only.
+    columns:
+      - name: dataset_id
+        description: MaveDB score set URN or ProteinGym assay ID the label comes from.
+        data_tests: [not_null]
+      - name: data_kind
+        description: domainome (protein abundance of single domains), mavedb (other MaveDB assays) or proteingym (stability).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [domainome, mavedb, proteingym]
+      - name: uniprot_id
+        description: UniProt accession of the protein.
+        data_tests: [not_null]
+      - name: uniprot_position
+        description: Position of the variant in the canonical UniProt sequence.
+      - name: ref_aa
+        description: Wild-type amino acid.
+      - name: alt_aa
+        description: Amino acid of the variant.
+      - name: split
+        description: train (cross-validation, model selection) or test (final evaluation only).
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [train, test]
+      - name: similarity_group
+        description: Group of related proteins; cross-validation folds never separate a group.
+        data_tests: [not_null]
+      - name: label
+        description: What the models predict - 1 = like the wild type, 0 = function lost (notebook 07c).
+        data_tests: [not_null]
+      - name: blosum62
+        description: BLOSUM62 score of the exchange; negative = rarely seen between related proteins.
+        data_tests: [not_null]
+      - name: d_hydrophobicity
+        description: Kyte-Doolittle hydrophobicity of the new amino acid minus that of the old one.
+      - name: d_volume
+        description: Volume of the new amino acid minus that of the old one, in cubic angstrom.
+      - name: d_charge
+        description: Charge of the new amino acid minus that of the old one.
+      - name: esm_delta
+        description: ESM-2 log-probability of the new amino acid minus that of the old one; very negative = the model finds the variant implausible. On its own this is the zero-shot score.
+        data_tests: [not_null]
+      - name: esm_wt_logprob
+        description: See dim_residue.
+      - name: esm_entropy
+        description: See dim_residue.
+      - name: plddt
+        description: See dim_residue.
+      - name: rsa
+        description: See dim_residue.
+      - name: contacts_8
+        description: See dim_residue.
+      - name: contacts_12
+        description: See dim_residue.
+      - name: hse_up
+        description: See dim_residue.
+      - name: hse_down
+        description: See dim_residue.
+      - name: neighbour_entropy
+        description: See dim_residue.
+      - name: d_volume_buried
+        description: Volume change times how buried the residue is (1 - rsa); a size change matters most in the core.
+      - name: relative_position
+        description: See dim_residue.
+
+unit_tests:
+
+  - name: a_residue_gets_its_own_values_and_its_neighbours_average
+    description: >
+      Three residues with entropies 1, 2 and 3. Residue 1 neighbours 2 and 3 (average 2.5). Residue 3's
+      structure has another amino acid than UniProt, so its structure values stay empty. Residue 2 is a
+      selenocysteine: not one of the 20, so it has no wild-type log-probability. P2 is not in the split.
+    model: dim_residue
+    given:
+      - input: ref('dim_protein')
+        rows:
+          - { uniprot_id: P1, length: 4 }
+          - { uniprot_id: P2, length: 4 }
+      - input: ref('protein_split')
+        rows:
+          - { uniprot_id: P1 }
+      - input: ref('stg_residue_language_model')
+        format: sql
+        rows: |
+          select 'P1' as uniprot_id, 1 as position, 'A' as aa, array(cast(-0.5 as float), cast(-2 as float)) as logprobs, cast(1 as double) as esm_entropy
+          union all select 'P1', 2, 'U', array(cast(-1 as float), cast(-1 as float)), 2
+          union all select 'P1', 3, 'C', array(cast(-3 as float), cast(-0.25 as float)), 3
+          union all select 'P2', 1, 'A', array(cast(-0.5 as float), cast(-2 as float)), 1
+      - input: ref('stg_residue_structure')
+        format: sql
+        rows: |
+          select 'P1' as uniprot_id, 1 as position, 'A' as aa, cast(90 as double) as plddt, cast(0.25 as double) as rsa, 5 as contacts_8, 9 as contacts_12, 7 as hse_up, 8 as hse_down, array(2, 3) as neighbours
+          union all select 'P1', 2, 'U', 80, 0.5, 4, 8, 6, 7, array(1)
+          union all select 'P1', 3, 'G', 70, 0.75, 3, 7, 5, 6, array(1, 2)
+    expect:
+      rows:
+        - { uniprot_id: P1, position: 1, relative_position: 0.25, esm_wt_logprob: -0.5, plddt: 90, neighbour_entropy: 2.5 }
+        - { uniprot_id: P1, position: 2, relative_position: 0.5, esm_wt_logprob: null, plddt: 80, neighbour_entropy: 1.0 }
+        - { uniprot_id: P1, position: 3, relative_position: 0.75, esm_wt_logprob: -0.25, plddt: null, neighbour_entropy: null }
+
+  - name: features_are_differences_between_the_new_and_the_old_amino_acid
+    description: >
+      A to C at a residue where ESM-2 gives A -1 and C -3 (delta -2), with made-up property tables: volume
+      100 to 60 (-40), three quarters buried (-30).
+    model: fct_variant_features
+    given:
+      - input: ref('fct_variant_label')
+        rows:
+          - { dataset_id: d1, source: mavedb, is_domainome: true, uniprot_id: P1, uniprot_position: 7, ref_aa: A, alt_aa: C, label: 0.5 }
+      - input: ref('protein_split')
+        rows:
+          - { uniprot_id: P1, similarity_group: P1, split: train }
+      - input: ref('dim_residue')
+        format: sql
+        rows: |
+          select 'P1' as uniprot_id, 7 as position, 'A' as aa, cast(0.5 as double) as relative_position,
+                 array(cast(-1 as float), cast(-3 as float)) as logprobs, cast(-1 as double) as esm_wt_logprob,
+                 cast(1.5 as double) as esm_entropy, cast(90 as double) as plddt, cast(0.25 as double) as rsa,
+                 5 as contacts_8, 9 as contacts_12, 7 as hse_up, 8 as hse_down, cast(2.5 as double) as neighbour_entropy
+      - input: ref('amino_acid')
+        rows:
+          - { aa: A, hydrophobicity: 1.5, volume: 100, charge: 0 }
+          - { aa: C, hydrophobicity: -0.5, volume: 60, charge: -1 }
+      - input: ref('blosum62')
+        rows:
+          - { ref_aa: A, alt_aa: C, score: -2 }
+          - { ref_aa: C, alt_aa: A, score: 9 }
+    expect:
+      rows:
+        - { dataset_id: d1, data_kind: domainome, split: train, label: 0.5, blosum62: -2, d_hydrophobicity: -2.0, d_volume: -40, d_charge: -1, esm_delta: -2.0, d_volume_buried: -30, neighbour_entropy: 2.5 }

@@ -41,3 +41,6 @@ vars:
   label_min_numbering_agreement: 0.95 # share of reference residues that match UniProt
   label_min: -1 # labels are clipped to [-1, 3], as in Lafita et al. 2024
   label_max: 3
+  # Features (notebook 07f)
+  amino_acids: ACDEFGHIKLMNPQRSTVWY # the order of ESM-2's 20 log-probabilities (lakehouse.language_model)
+  residue_scope: labelled # dim_residue covers the proteins of the split; "proteome" covers all (notebook 09)
