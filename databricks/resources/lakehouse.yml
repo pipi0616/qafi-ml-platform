@@ -181,3 +181,47 @@ resources:
           depends_on: [{ task_key: bronze_alphafold }]
           notebook_task:
             notebook_path: ../src/notebooks/silver_structure.py
+
+    language_model:
+      name: qafi language model
+      max_concurrent_runs: 1
+      timeout_seconds: 10800
+      email_notifications:
+        on_failure: ["${workspace.current_user.userName}"]
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: model_version
+          default: "08e4846e537177426273712802403f7ba8261b6c" # ESM-2 650M's Hugging Face commit
+        - name: limit
+          default: "0" # at most this many proteins, for a trial run; 0 = all
+        - name: batch_size
+          default: "1000" # proteins per batch; each batch is saved before the next starts
+        - name: tokens_per_batch
+          default: "16384" # amino acids the GPU reads at once
+        - name: backfill
+          default: "" # a volume folder of results read elsewhere (a laptop's GPU), loaded by load_language_model
+        - name: rebuild
+          default: "false" # true: read every protein again
+      environments:
+        - environment_key: gpu
+          spec:
+            base_environment: databricks_ai_v6 # PyTorch with CUDA; transformers is pinned in the notebook
+      tasks:
+        - task_key: copy_raw
+          max_retries: 2
+          min_retry_interval_millis: 60000
+          notebook_task:
+            notebook_path: ../src/notebooks/copy_raw.py
+        - task_key: load_language_model # needs no GPU
+          notebook_task:
+            notebook_path: ../src/notebooks/load_language_model.py
+        # Needs bronze.uniprot_proteome and gold.fct_variant_label from the training_data job, and a GPU
+        # quota: Free Edition has none (gpu-quota-denied), so there run the job with --only load_language_model.
+        - task_key: silver_language_model
+          depends_on: [{ task_key: copy_raw }, { task_key: load_language_model }]
+          environment_key: gpu
+          compute:
+            hardware_accelerator: GPU_1xA10
+          notebook_task:
+            notebook_path: ../src/notebooks/silver_language_model.py

@@ -34,6 +34,7 @@ SIGNATURES = {
     ".zip": (0, b"PK\x03\x04"),
     ".parquet": (0, b"PAR1"),
     ".tar": (257, b"ustar"),  # tar archives carry their signature in the first header block
+    ".safetensors": (8, b"{"),  # model weights: 8 bytes giving the header's length, then the JSON header
 }
 TEXT_SUFFIXES = (".tsv", ".csv", ".txt", ".json")
 CHECKSUM_FIELDS = ("ChecksumCRC64NVME", "ChecksumCRC32", "ChecksumCRC32C", "ChecksumSHA256", "ChecksumSHA1")
@@ -56,7 +57,9 @@ def check(key: str, size: int, head: bytes) -> list[str]:
         if b"\x00" in head:
             problems.append("text file contains binary data")
     else:
-        problems.append("file type not allowed (use .gz, .zip, .parquet, .tar, .tsv, .csv, .txt or .json)")
+        problems.append(
+            "file type not allowed (use .gz, .zip, .parquet, .tar, .safetensors, .tsv, .csv, .txt or .json)"
+        )
     return problems
 
 

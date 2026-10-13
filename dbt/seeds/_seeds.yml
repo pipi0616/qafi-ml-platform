@@ -3,12 +3,13 @@ version: 2
 seeds:
   - name: protein_split
     description: >
-      Which DMS proteins train the model and which are kept for the final test (notebook 07a). Related
-      proteins (similar sequences) share a similarity_group and are always on the same side. Written once by
-      qafi_core.validation.lock_split and locked: never edit by hand, so no decision can be fitted to the test.
+      Which labelled proteins train the model and which are kept for the final test (notebooks 07a, 07c).
+      Related proteins (similar sequences) share a similarity_group and are always on the same side. Rows are
+      only ever added, by qafi_core.validation.lock_split and extend_split; never edit one by hand or remove
+      one, so no decision can be fitted to the test set.
     columns:
       - name: uniprot_id
-        description: UniProt accession of a protein with DMS measurements.
+        description: UniProt accession of a protein with DMS measurements or variant labels.
         data_tests:
           - unique
           - not_null
@@ -17,7 +18,9 @@ seeds:
                 to: ref('dim_protein')
                 field: uniprot_id
       - name: similarity_group
-        description: First accession of the group of related proteins (E-value < 1e-5, >= 30% identity over half the shorter protein).
+        description: >
+          Accession of the group's representative. A protein is in the group when it is related to that
+          representative (E-value < 1e-5, >= 30% identity over half the shorter protein).
         data_tests: [not_null]
       - name: split
         description: train (cross-validation and model selection) or test (only the final evaluation).

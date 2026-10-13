@@ -50,6 +50,32 @@ def test_the_split_is_written_once_then_only_read(tmp_path, monkeypatch):
     pd.testing.assert_frame_equal(v.lock_split(path, {"A": "changed since"}), first)
 
 
+def test_representative_groups_do_not_follow_chains():
+    """A and C are both half B, so a chain would merge them; the representative keeps them apart."""
+    a, c = _random(100, 1), _random(100, 2)
+    b = a[:50] + c[:50]
+    groups = v.representative_groups({"A": a, "B": b, "C": c})
+    assert groups["A"] != groups["C"]
+    assert v.similar_groups({"A": a, "B": b, "C": c})["A"] == v.similar_groups({"A": a, "B": b, "C": c})["C"]
+
+
+def test_extending_the_split_keeps_old_rows_and_relatives_together(tmp_path):
+    path = tmp_path / "split.csv"
+    base = {"A": _random(100, 1), "B": _random(100, 2)}
+    locked = v.lock_split(path, base)
+    a_side = locked.set_index("uniprot_id").loc["A", "split"]
+    more = {**base, "A2": base["A"], "C": _random(100, 3)}
+    table = v.extend_split(path, more).set_index("uniprot_id")
+    assert (
+        table.loc[["A", "B"], "split"].tolist()
+        == locked.set_index("uniprot_id").loc[["A", "B"], "split"].tolist()
+    )
+    assert table.loc["A2", "split"] == a_side and table.loc["A2", "similarity_group"] == "A"
+    assert set(table.index) == {"A", "A2", "B", "C"}
+    again = v.extend_split(path, more)
+    pd.testing.assert_frame_equal(again.set_index("uniprot_id"), table)
+
+
 def test_folds_hold_out_whole_groups():
     groups = pd.Series(list("aabbccddee"))
     fold = v.group_folds(groups, n_folds=5)

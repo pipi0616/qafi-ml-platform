@@ -63,3 +63,16 @@ version = "v6"
 refresh = "manual"
 what = "AlphaFold predicted structures of the human proteome, version 6 (latest)"
 urls = ["https://ftp.ebi.ac.uk/pub/databases/alphafold/{version}/UP000005640_9606_HUMAN_{version}.tar"]
+
+[[dataset]]
+name = "esm2-650m"
+version = "08e4846e537177426273712802403f7ba8261b6c"  # the Hugging Face commit of facebook/esm2_t33_650M_UR50D
+refresh = "manual"  # a new model changes every language-model feature
+what = "ESM-2 protein language model, 650 million parameters (MIT licence): weights, configuration and tokenizer (notebook 07e)"
+urls = [
+    "https://huggingface.co/facebook/esm2_t33_650M_UR50D/resolve/{version}/config.json",
+    "https://huggingface.co/facebook/esm2_t33_650M_UR50D/resolve/{version}/model.safetensors",
+    "https://huggingface.co/facebook/esm2_t33_650M_UR50D/resolve/{version}/special_tokens_map.json",
+    "https://huggingface.co/facebook/esm2_t33_650M_UR50D/resolve/{version}/tokenizer_config.json",
+    "https://huggingface.co/facebook/esm2_t33_650M_UR50D/resolve/{version}/vocab.txt",
+]

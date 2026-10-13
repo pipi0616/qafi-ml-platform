@@ -100,6 +100,14 @@ def test_tar_signature_is_checked_at_its_offset():
     assert "wrong file signature" in problems[0]
 
 
+def test_model_weights_are_checked_after_their_header_length():
+    header = b'{"embeddings.weight": {"dtype": "F32"}}'
+    weights = len(header).to_bytes(8, "little") + header
+    assert check("datasets/esm2-650m/08e4846/model.safetensors", 10, weights) == []
+    problems = check("datasets/esm2-650m/08e4846/model.safetensors", 10, b"<!DOCTYPE html>")
+    assert "wrong file signature" in problems[0]  # an error page saved under the model's name
+
+
 def test_check_accepts_the_allowed_types():
     assert check("datasets/proteome/v1.0/all.tar.gz", 10, b"\x1f\x8b\x08") == []
     assert check("datasets/proteome/v1.0/part.parquet", 10, b"PAR1") == []

@@ -121,6 +121,61 @@ def lock_split(path: Path, sequences: dict[str, str]) -> pd.DataFrame:
     return table
 
 
+def representative_groups(sequences: dict[str, str]) -> dict[str, str]:
+    """For each protein, the group it belongs to, named after the group's representative.
+
+    Unlike :func:`similar_groups`, relations are not followed in chains: the longest protein left becomes a
+    representative, every protein related to that representative itself joins its group, and the group is
+    then closed. Chains merge unrelated families, because multi-domain proteins share single domains: one
+    zinc finger protein reaches a kinase through a third protein that has both. This is the clustering that
+    CD-HIT and MMseqs2 perform (a greedy set cover), and the one sequence splits in the field are built on.
+    """
+    left = sorted(sequences, key=lambda name: (-len(sequences[name]), name))
+    group = {}
+    while left:
+        representative, *rest = left
+        group[representative] = representative
+        left = []
+        for name in rest:
+            if related(sequences[representative], sequences[name]):
+                group[name] = representative
+            else:
+                left.append(name)
+    return group
+
+
+def extend_split(path: Path, sequences: dict[str, str]) -> pd.DataFrame:
+    """Add proteins to the locked split in ``path``; rows already there are never touched.
+
+    A new protein related to a protein already in the split joins its group and its side, so relatives are
+    never split apart. The remaining new proteins are grouped among themselves by
+    :func:`representative_groups`, and each group draws its side from the same hash as :func:`split_proteins`.
+    """
+    locked = pd.read_csv(path)
+    known = dict(zip(locked.uniprot_id, locked.similarity_group, strict=True))
+    side = dict(zip(locked.uniprot_id, locked.split, strict=True))
+    new = [name for name in sorted(sequences) if name not in known]
+    rows = []
+    for protein in new:
+        relatives = [q for q in sorted(known) if q in sequences and related(sequences[q], sequences[protein])]
+        if relatives:
+            relative = relatives[0]
+            rows.append({"uniprot_id": protein, "similarity_group": known[relative], "split": side[relative]})
+    joined = {row["uniprot_id"] for row in rows}
+    rest = {name: sequences[name] for name in new if name not in joined}
+    groups = representative_groups(rest)
+    split = split_proteins(groups)
+    rows += [
+        {"uniprot_id": name, "similarity_group": groups[name], "split": split[name]} for name in sorted(rest)
+    ]
+    if not rows:
+        return locked
+    table = pd.concat([locked, pd.DataFrame(rows)], ignore_index=True)
+    table = table.sort_values("uniprot_id", ignore_index=True)
+    table.to_csv(path, index=False)
+    return table
+
+
 def group_folds(groups: pd.Series, n_folds: int = 5) -> pd.Series:
     """Cross-validation fold for each row; every group falls in exactly one fold."""
     from sklearn.model_selection import GroupKFold

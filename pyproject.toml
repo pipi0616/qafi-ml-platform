@@ -27,7 +27,18 @@ dev = [
     "scikit-learn>=1.9.1",
     "databricks-sdk>=0.72",
     "dbt-databricks>=1.12",
+    "torch>=2.8",            # ESM-2 runs on Databricks GPUs; locally on the CPU for tests and small examples
+    "transformers>=4.56",
 ]
+
+# PyTorch's default Linux wheels bundle CUDA (gigabytes); tests and CI only need the CPU build.
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 # --- packaging: makes `import qafi_platform` work everywhere (uv run, pytest, Docker) ---
 [build-system]
