@@ -3,7 +3,8 @@
 Free Edition cannot attach our S3 bucket, so raw files travel through temporary download links:
 ``transfer_links`` signs a read-only link per file (valid a few hours, no AWS key leaves the laptop)
 and ``upload_transfer_list`` puts the list into the volume, where the job's copy task reads it.
-``sql`` runs a query on the workspace's SQL warehouse and returns a pandas DataFrame.
+``sql`` runs a query on the workspace's SQL warehouse and returns a pandas DataFrame; ``download`` saves a
+large result as a parquet file.
 ``create_machine_identity`` gives Airflow its own Databricks identity, with the secret kept in AWS.
 
 ``w`` is a ``databricks.sdk.WorkspaceClient``; the SDK is only needed where these are called.
@@ -85,15 +86,8 @@ def warehouse_id(w) -> str:
     return next(iter(w.warehouses.list())).id
 
 
-def sql(w, statement: str, warehouse: str | None = None, timeout: int = 600) -> pd.DataFrame:
-    """Run ``statement`` on the SQL warehouse and return the result as a DataFrame.
-
-    The warehouse starts by itself if it is stopped, which takes a few seconds.
-    """
-    api = w.statement_execution
-    response = api.execute_statement(
-        statement=statement, warehouse_id=warehouse or warehouse_id(w), wait_timeout="30s"
-    )
+def _finished(api, response, timeout: int):
+    """Wait until the statement has run; returns the final response, or raises with the warehouse's error."""
     deadline = time.monotonic() + timeout
     while response.status.state.value in ("PENDING", "RUNNING"):
         if time.monotonic() > deadline:
@@ -104,6 +98,23 @@ def sql(w, statement: str, warehouse: str | None = None, timeout: int = 600) -> 
     if response.status.state.value != "SUCCEEDED":
         error = response.status.error.message if response.status.error else response.status.state.value
         raise RuntimeError(f"query failed: {error}")
+    return response
+
+
+def sql(w, statement: str, warehouse: str | None = None, timeout: int = 600) -> pd.DataFrame:
+    """Run ``statement`` on the SQL warehouse and return the result as a DataFrame.
+
+    The warehouse starts by itself if it is stopped, which takes a few seconds. Results travel as text and
+    are limited to 25 MB: for a large result use :func:`download`.
+    """
+    api = w.statement_execution
+    response = _finished(
+        api,
+        api.execute_statement(
+            statement=statement, warehouse_id=warehouse or warehouse_id(w), wait_timeout="30s"
+        ),
+        timeout,
+    )
     columns = [c.name for c in response.manifest.schema.columns] if response.manifest else []
     rows, chunk = [], response.result
     while chunk is not None:
@@ -112,6 +123,47 @@ def sql(w, statement: str, warehouse: str | None = None, timeout: int = 600) -> 
             break
         chunk = api.get_statement_result_chunk_n(response.statement_id, chunk.next_chunk_index)
     return pd.DataFrame(rows, columns=columns)
+
+
+def download(w, statement: str, path, warehouse: str | None = None, timeout: int = 1800) -> int:
+    """Run ``statement`` and save its result as a parquet file at ``path``; returns the number of rows.
+
+    For results of any size, with their column types kept: the warehouse hands the result out as Arrow
+    files behind temporary links, and they are written to disk one after another, so memory stays low.
+    """
+    import urllib.request
+
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    from databricks.sdk.service.sql import Disposition, Format
+
+    api = w.statement_execution
+    response = _finished(
+        api,
+        api.execute_statement(
+            statement=statement,
+            warehouse_id=warehouse or warehouse_id(w),
+            disposition=Disposition.EXTERNAL_LINKS,
+            format=Format.ARROW_STREAM,
+            wait_timeout="30s",
+        ),
+        timeout,
+    )
+    writer, rows = None, 0
+    index = 0 if response.manifest.total_chunk_count else None
+    while index is not None:
+        links = api.get_statement_result_chunk_n(response.statement_id, index).external_links
+        index = None
+        for link in links:
+            with urllib.request.urlopen(link.external_link) as stream:
+                table = pa.ipc.open_stream(stream.read()).read_all()
+            writer = writer or pq.ParquetWriter(path, table.schema)
+            writer.write_table(table)
+            rows += table.num_rows
+            index = link.next_chunk_index
+    if writer:
+        writer.close()
+    return rows
 
 
 def latest_run(w, job_name: str) -> pd.DataFrame:

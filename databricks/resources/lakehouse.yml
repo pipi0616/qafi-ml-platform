@@ -57,6 +57,12 @@ resources:
       grants: # Airflow puts the transfer list here (notebook 06); writing a file needs both privileges
         - principal: ${var.airflow_sp}
           privileges: [READ_VOLUME, WRITE_VOLUME]
+    ml_files:
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.ml.name}
+      name: files
+      volume_type: MANAGED
+      comment: Results of models trained outside Databricks, on their way into the ml tables (notebook 08a)
 
   jobs:
     training_data:

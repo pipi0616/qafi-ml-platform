@@ -128,6 +128,15 @@ def compare(scores: pd.DataFrame, reference: pd.DataFrame) -> dict[str, float]:
     return {name: round(value, 4) for name, value in result.items()}
 
 
+def rank_average(df: pd.DataFrame, columns: list[str]) -> pd.Series:
+    """Several predictions combined into one: the average of their ranks within each dataset.
+
+    Predictions live on different scales (a log-probability, a label, a standardised label), so they are
+    first turned into ranks, 0 to 1, per dataset. Models that err in different ways partly cancel out.
+    """
+    return sum(df.groupby("dataset_id")[column].rank(pct=True) for column in columns) / len(columns)
+
+
 def compare_with_paper(predictions: pd.DataFrame, paper: pd.DataFrame, minimum: int = 50) -> pd.DataFrame:
     """Our held-out predictions next to the QAFI paper's, on the variants both have, per protein.
 

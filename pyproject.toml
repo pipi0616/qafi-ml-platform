@@ -31,6 +31,7 @@ dev = [
     "transformers>=4.56",
     "xgboost>=3.0",
     "mlflow-skinny>=3.0",
+    "matplotlib>=3.9",
 ]
 
 # PyTorch's default Linux wheels bundle CUDA (gigabytes); tests and CI only need the CPU build.
