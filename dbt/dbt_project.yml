@@ -43,4 +43,3 @@ vars:
   label_max: 3
   # Features (notebook 07f)
   amino_acids: ACDEFGHIKLMNPQRSTVWY # the order of ESM-2's 20 log-probabilities (lakehouse.language_model)
-  residue_scope: labelled # dim_residue covers the proteins of the split; "proteome" covers all (notebook 09)

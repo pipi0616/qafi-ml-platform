@@ -248,6 +248,27 @@ def fit(df, table, index, features=None, standardise: bool = False, settings: di
     return model.cpu()
 
 
+def score(model: Head, df: pd.DataFrame, table, index: pd.DataFrame, features=None) -> np.ndarray:
+    """A trained network's prediction for every variant of ``df``, whose residues must be in ``table``."""
+    dev = device()
+    rows = df[["uniprot_id", "uniprot_position"]].merge(
+        index, left_on=["uniprot_id", "uniprot_position"], right_on=["uniprot_id", "position"], how="left"
+    )["row"]
+    if rows.isna().any():
+        raise ValueError(f"{int(rows.isna().sum())} variants have no embedding")
+    table = torch.tensor(np.array(table), device=dev)
+    row = torch.tensor(rows.to_numpy(np.int64), device=dev)
+    alt = torch.tensor(df["alt_aa"].map(AMINO_ACIDS.index).to_numpy(np.int64), device=dev)
+    values = torch.tensor(df[list(features)].to_numpy(np.float32), device=dev) if features else None
+    model = model.to(dev).eval()
+    out = []
+    with torch.no_grad():
+        for batch in torch.arange(len(df), device=dev).split(16384):
+            scores = model(table[row[batch]], values[batch] if values is not None else None)
+            out.append(scores.gather(1, alt[batch, None]).squeeze(1).cpu())
+    return torch.cat(out).numpy()
+
+
 def learning_curve(
     df, table, index, features=None, standardise: bool = False, settings: dict | None = None, fold: int = 0
 ) -> pd.DataFrame:

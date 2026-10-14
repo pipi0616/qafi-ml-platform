@@ -17,8 +17,8 @@ def test_the_seed_files_are_exactly_what_the_code_produces():
 
 def test_the_lookup_tables_hold_the_published_values():
     amino_acid = features.amino_acid_table().set_index("aa")
-    assert amino_acid.loc["I"].tolist() == [4.5, 166.7, 0]  # most hydrophobic
-    assert amino_acid.loc["R"].tolist() == [-4.5, 173.4, 1]
+    assert amino_acid.loc["I"].tolist() == ["Ile", 4.5, 166.7, 0]  # most hydrophobic
+    assert amino_acid.loc["R"].tolist() == ["Arg", -4.5, 173.4, 1]
     assert amino_acid.loc["D", "charge"] == -1
     blosum = features.blosum62_table().set_index(["ref_aa", "alt_aa"])["score"]
     assert len(blosum) == 400

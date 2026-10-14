@@ -191,6 +191,47 @@ models:
       - name: is_domainome
         description: Comes from Human Domainome 1 (abundance, i.e. stability).
 
+  - name: fct_clinvar_missense
+    description: >
+      ClinVar germline missense variants classified pathogenic or benign with at least one review star, on
+      UniProt numbering, one row per protein variant (notebook 09c): the external check of the released
+      scores. in_our_data marks proteins with DMS labels (training or test), which an unbiased check leaves out.
+    columns:
+      - name: uniprot_id
+        description: UniProt accession, via the gene symbol.
+        data_tests: [not_null]
+      - name: position
+        description: Position in the canonical UniProt sequence (the reference residue matches it).
+      - name: ref_aa
+        description: Wild-type amino acid.
+      - name: alt_aa
+        description: Amino acid of the variant.
+      - name: pathogenic
+        description: True for pathogenic or likely pathogenic, false for benign or likely benign.
+        data_tests: [not_null]
+      - name: clinvar_variants
+        description: ClinVar variants (different DNA changes) behind this protein variant.
+      - name: in_our_data
+        description: Whether the protein has DMS labels in our data (training or test proteins).
+
+  - name: fct_variant_effect
+    description: >
+      The product: every missense variant of the human reference proteome with its released scores
+      (notebook 09c), both 0 to 1 and low = damaging. A view over ml.proteome_scores with gene names.
+    columns:
+      - name: uniprot_id
+        description: UniProt accession.
+      - name: gene_name
+        description: Gene symbol, e.g. TP53.
+      - name: variant
+        description: The substitution in one-letter code, e.g. R175H.
+      - name: stability_score
+        description: Percentile of the stability network's output among the training variants; low = likely destabilising.
+      - name: function_score
+        description: Mean percentile of zero-shot ESM-2, the trees and the stability network; low = likely loss of function.
+      - name: zero_shot
+        description: ESM-2's log-probability of the new amino acid minus that of the old one.
+
 unit_tests:
 
   - name: labels_are_scores_rescaled_between_the_two_anchors
@@ -239,3 +280,35 @@ unit_tests:
         - { dms_id: domain, assay_position: 2, uniprot_position: 4, position_mapping: offset }
         - { dms_id: variant, assay_position: 2, uniprot_position: 2, position_mapping: kmer }
         - { dms_id: variant, assay_position: 20, uniprot_position: null, position_mapping: unmapped }
+  - name: clinvar_protein_changes_are_read_from_the_variant_name
+    description: >
+      A pathogenic TP53 R175H is kept; a nonsense change, a record whose residue does not match UniProt,
+      an unreviewed record and a protein variant with records on both sides are dropped.
+    model: fct_clinvar_missense
+    given:
+      - input: source('bronze', 'clinvar_variant_summary')
+        format: sql
+        rows: |
+          select 1 as VariationID, 'TP53' as GeneSymbol, 'NM_000546.6(TP53):c.524G>A (p.Arg175His)' as Name, 'Pathogenic' as ClinicalSignificance,
+                 'single nucleotide variant' as Type, 'GRCh38' as Assembly, 'germline' as OriginSimple, 'criteria provided, single submitter' as ReviewStatus
+          union all select 2, 'TP53', 'NM_000546.6(TP53):c.1A>T (p.Arg5Ter)', 'Pathogenic', 'single nucleotide variant', 'GRCh38', 'germline', 'reviewed by expert panel'
+          union all select 3, 'TP53', 'NM_000546.6(TP53):c.7A>T (p.Arg6His)', 'Benign', 'single nucleotide variant', 'GRCh38', 'germline', 'reviewed by expert panel'
+          union all select 4, 'TP53', 'NM_000546.6(TP53):c.8A>T (p.Glu3Lys)', 'Benign', 'single nucleotide variant', 'GRCh38', 'germline', 'no assertion criteria provided'
+          union all select 5, 'TP53', 'NM_000546.6(TP53):c.9A>T (p.Glu3Lys)', 'Pathogenic', 'single nucleotide variant', 'GRCh38', 'germline', 'reviewed by expert panel'
+          union all select 6, 'TP53', 'NM_000546.6(TP53):c.9A>G (p.Glu3Lys)', 'Benign', 'single nucleotide variant', 'GRCh38', 'germline', 'reviewed by expert panel'
+      - input: ref('dim_protein')
+        format: sql
+        rows: |
+          select 'P04637' as uniprot_id, 'TP53' as gene_name, concat('MEEPQSDPSV', repeat('A', 164), 'R', repeat('A', 10)) as sequence
+      - input: ref('amino_acid')
+        rows:
+          - { aa: R, code3: Arg }
+          - { aa: H, code3: His }
+          - { aa: E, code3: Glu }
+          - { aa: K, code3: Lys }
+      - input: ref('protein_split')
+        rows:
+          - { uniprot_id: P04637 }
+    expect:
+      rows:
+        - { uniprot_id: P04637, position: 175, ref_aa: R, alt_aa: H, pathogenic: true, clinvar_variants: 1, in_our_data: true }

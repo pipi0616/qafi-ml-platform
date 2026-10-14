@@ -134,7 +134,7 @@ resources:
             project_directory: ../../dbt
             # Everything but the feature tables: they also need the structure and language-model tables,
             # which the jobs structures and language_model fill. The baseline job builds them.
-            commands: ["dbt build --exclude stg_residue_structure+ stg_residue_language_model+"]
+            commands: ["dbt build --exclude stg_residue_structure+ stg_residue_language_model+ fct_variant_effect"]
             warehouse_id: ${var.warehouse_id}
             catalog: ${var.catalog}
             schema: gold
@@ -273,7 +273,7 @@ resources:
           dbt_task:
             project_directory: ../../dbt
             commands:
-              ["dbt build --select amino_acid blosum62 stg_residue_structure+ stg_residue_language_model+"]
+              ["dbt build --select amino_acid blosum62 stg_residue_structure+ stg_residue_language_model+ --exclude dim_residue_proteome+"]
             warehouse_id: ${var.warehouse_id}
             catalog: ${var.catalog}
             schema: gold

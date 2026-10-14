@@ -159,3 +159,10 @@ def test_the_newest_run_of_each_name_is_read_with_its_comparisons(monkeypatch):
     table = tracking.comparison(runs, "mlp", "baseline")
     assert table.loc["mavedb"].tolist() == [0.33, -0.017, 0.005]
     assert table.loc["domainome"].tolist() == [0.9, 0.079, 0.0]
+
+
+def test_the_test_set_can_be_opened_only_once(monkeypatch):
+    opened = pd.DataFrame({"run_id": ["first"]})
+    monkeypatch.setattr(tracking, "test_set_opened", lambda experiment, profile="qafi": opened)
+    with pytest.raises(RuntimeError, match="already opened by run first"):
+        tracking.test_run("/exp", {}, pd.DataFrame(), models={})

@@ -167,7 +167,7 @@ def test_download_writes_every_arrow_chunk_into_one_parquet_file(tmp_path, monke
         return sink.getvalue()
 
     files = {"https://link/0": arrow([("P1", [0.5, 1.5])]), "https://link/1": arrow([("P2", [2.5, 3.5])])}
-    monkeypatch.setattr("urllib.request.urlopen", lambda url: io.BytesIO(files[url]))
+    monkeypatch.setattr("urllib.request.urlopen", lambda url, timeout=None: io.BytesIO(files[url]))
     api = NS(
         execute_statement=lambda **kw: NS(
             statement_id="s1",
@@ -184,6 +184,39 @@ def test_download_writes_every_arrow_chunk_into_one_parquet_file(tmp_path, monke
     table = pq.read_table(path)
     assert table["uniprot_id"].to_pylist() == ["P1", "P2"]
     assert table["embedding"].to_pylist() == [[0.5, 1.5], [2.5, 3.5]]  # arrays keep their type
+
+
+def test_download_fetches_a_broken_transfer_again(tmp_path, monkeypatch):
+    import http.client
+    import io
+
+    import pyarrow as pa
+
+    sink = io.BytesIO()
+    with pa.ipc.new_stream(sink, pa.schema([("uniprot_id", pa.string())])) as stream:
+        stream.write_table(pa.table({"uniprot_id": ["P1"]}))
+    calls = []
+
+    def urlopen(url, timeout=None):  # the first transfer breaks off, the second gets through
+        calls.append(url)
+        if len(calls) == 1:
+            raise http.client.IncompleteRead(b"", 10)
+        return io.BytesIO(sink.getvalue())
+
+    monkeypatch.setattr("urllib.request.urlopen", urlopen)
+    monkeypatch.setattr(lakehouse.time, "sleep", lambda s: None)
+    api = NS(
+        execute_statement=lambda **kw: NS(
+            statement_id="s1",
+            status=NS(state=NS(value="SUCCEEDED"), error=None),
+            manifest=NS(total_chunk_count=1),
+        ),
+        get_statement_result_chunk_n=lambda sid, i: NS(external_links=[NS(external_link="https://link/0")]),
+    )
+    w = NS(statement_execution=api, warehouses=NS(list=lambda: iter([NS(id="wh1")])))
+    assert lakehouse.download(w, "SELECT ...", tmp_path / "result.parquet") == 1
+    assert len(calls) == 2
+    assert [p.name for p in tmp_path.iterdir()] == ["result.parquet"]  # no half-written file left
 
 
 def test_download_of_an_empty_result_writes_nothing(tmp_path):

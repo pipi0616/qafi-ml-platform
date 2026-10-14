@@ -16,6 +16,7 @@ import io
 import json
 import subprocess
 import time
+from pathlib import Path
 
 import pandas as pd
 
@@ -125,13 +126,20 @@ def sql(w, statement: str, warehouse: str | None = None, timeout: int = 600) -> 
     return pd.DataFrame(rows, columns=columns)
 
 
-def download(w, statement: str, path, warehouse: str | None = None, timeout: int = 1800) -> int:
+def download(
+    w, statement: str, path, warehouse: str | None = None, timeout: int = 1800, workers: int = 8
+) -> int:
     """Run ``statement`` and save its result as a parquet file at ``path``; returns the number of rows.
 
     For results of any size, with their column types kept: the warehouse hands the result out as Arrow
-    files behind temporary links, and they are written to disk one after another, so memory stays low.
+    files behind temporary links. ``workers`` links are fetched at the same time (the transfer, not the
+    query, is the slow part of a large result) and written to disk in their order, so memory stays low.
+    A link that breaks off is fetched again, for up to half an hour (a patchy connection); the file gets
+    its name only when complete, so a stopped download never leaves a file that looks finished.
     """
+    import http.client
     import urllib.request
+    from concurrent.futures import ThreadPoolExecutor
 
     import pyarrow as pa
     import pyarrow.parquet as pq
@@ -149,20 +157,32 @@ def download(w, statement: str, path, warehouse: str | None = None, timeout: int
         ),
         timeout,
     )
+    chunks = response.manifest.total_chunk_count or 0
+
+    def fetch(index: int, attempts: int = 35):
+        """One chunk; a transfer cut off half-way is fetched again, with a fresh link."""
+        for attempt in range(attempts):
+            try:
+                link = api.get_statement_result_chunk_n(response.statement_id, index).external_links[0]
+                with urllib.request.urlopen(link.external_link, timeout=120) as stream:  # stalled: retried
+                    return pa.ipc.open_stream(stream.read()).read_all()
+            except (OSError, http.client.HTTPException):  # OSError includes timeouts and a lost network
+                if attempt == attempts - 1:
+                    raise
+                time.sleep(min(2**attempt, 60))
+
+    path = Path(path)
+    partial = path.with_name(path.name + ".partial")
     writer, rows = None, 0
-    index = 0 if response.manifest.total_chunk_count else None
-    while index is not None:
-        links = api.get_statement_result_chunk_n(response.statement_id, index).external_links
-        index = None
-        for link in links:
-            with urllib.request.urlopen(link.external_link) as stream:
-                table = pa.ipc.open_stream(stream.read()).read_all()
-            writer = writer or pq.ParquetWriter(path, table.schema)
-            writer.write_table(table)
-            rows += table.num_rows
-            index = link.next_chunk_index
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        for start in range(0, chunks, workers):  # a window of chunks in flight, written in order
+            for table in pool.map(fetch, range(start, min(start + workers, chunks))):
+                writer = writer or pq.ParquetWriter(partial, table.schema)
+                writer.write_table(table)
+                rows += table.num_rows
     if writer:
         writer.close()
+        partial.replace(path)
     return rows
 
 

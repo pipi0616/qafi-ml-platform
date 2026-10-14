@@ -35,10 +35,13 @@ seeds:
       The 20 amino acids with the properties behind the substitution features (notebook 07f). Written by
       qafi_core.features.amino_acid_table; a test checks the file is exactly what that function returns.
     config:
-      column_types: { aa: string, hydrophobicity: double, volume: double, charge: int }
+      column_types: { aa: string, code3: string, hydrophobicity: double, volume: double, charge: int }
     columns:
       - name: aa
         description: One-letter code.
+        data_tests: [unique, not_null]
+      - name: code3
+        description: Three-letter code, as in variant names such as p.Arg175His.
         data_tests: [unique, not_null]
       - name: hydrophobicity
         description: Kyte-Doolittle hydropathy (1982); positive = hydrophobic.

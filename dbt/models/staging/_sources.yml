@@ -27,3 +27,12 @@ sources:
         description: UniProt human reference proteome, one row per protein.
       - name: uniprot_idmapping
         description: UniProt accession to other identifiers (GeneID, Ensembl, ...), one row per pair.
+      - name: clinvar_variant_summary
+        description: ClinVar variant_summary.txt as released, one row per variant and genome assembly (notebook 04).
+
+  - name: ml
+    database: "{{ target.database }}"
+    schema: ml
+    tables:
+      - name: proteome_scores
+        description: The released scores of every missense variant of the human proteome, loaded in notebook 09c.

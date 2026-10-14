@@ -61,7 +61,16 @@ PROTEOME = [
         True,
     ),
     ("one row per variant", f"SELECT count(*) = count(DISTINCT uniprot_id, position, ref_aa, alt_aa) FROM {s}", True),
-    ("protein-level scores agree in every copy of a variant", f"SELECT count_if(has_conflict) = 0 FROM {s}", True),
+    (
+        "QAFI, AlphaMissense and CPT-1 agree in every copy of a variant",
+        f"SELECT count_if(size(array_except(conflicting_columns, array('eve', 'popeve'))) > 0) = 0 FROM {s}",
+        True,
+    ),
+    (  # known in the source file: EVE and popEVE of different transcripts; those values are set to NULL
+        "EVE and popEVE disagree between copies for under 1% of variants",
+        f"SELECT avg(CAST(has_conflict AS DOUBLE)) < 0.01 FROM {s}",
+        False,
+    ),
     (
         "amino acids are standard and actually change",
         f"SELECT count_if(NOT ref_aa RLIKE {AA} OR NOT alt_aa RLIKE {AA} OR ref_aa = alt_aa) = 0 FROM {s}",

@@ -15,6 +15,7 @@ import io
 import logging
 import os
 import subprocess
+from contextlib import contextmanager
 
 import numpy as np
 import pandas as pd
@@ -172,4 +173,94 @@ def cv_run(
         if model is not None:
             mlflow.pytorch.log_model(model, name="model", signature=signature)
         save_scores(w, scores, run_name, run.info.run_id, catalog)
+    return run.info.run_id
+
+
+def _mlflow(experiment: str, profile: str):
+    import mlflow
+
+    logging.getLogger("mlflow").setLevel(logging.ERROR)
+    mlflow.set_tracking_uri(f"databricks://{profile}")
+    mlflow.set_experiment(experiment)
+    return mlflow
+
+
+@contextmanager
+def tuning_run(experiment: str, run_name: str, chapter: str = "", profile: str = "qafi"):
+    """A parent MLflow run for a hyperparameter search; yields a function that records one trial.
+
+    Each trial becomes a child run (nested), so the search shows as one row that opens into its trials.
+    """
+    mlflow = _mlflow(experiment, profile)
+    with mlflow.start_run(run_name=run_name) as parent:
+        mlflow.set_tags({"chapter": chapter, "code_version": code_version(), "trained_on": "laptop"})
+
+        def log_trial(number: int, settings: dict, summary: dict) -> None:
+            with mlflow.start_run(run_name=f"trial_{number:02d}", nested=True):
+                mlflow.log_params(settings)
+                mlflow.log_metrics(summary)
+
+        yield parent, log_trial
+
+
+def model_run(
+    experiment: str,
+    run_name: str,
+    params: dict,
+    model,
+    flavor: str,
+    signature=None,
+    dicts: dict[str, dict] | None = None,
+    chapter: str = "",
+    profile: str = "qafi",
+) -> str:
+    """Record a final model (trained on all training proteins) with its settings; returns its model URI.
+
+    ``flavor`` is the MLflow flavor that saves it (pytorch, xgboost); ``dicts`` are small JSON files
+    stored next to it, such as the training distributions that turn outputs into percentiles.
+    """
+    mlflow = _mlflow(experiment, profile)
+    with mlflow.start_run(run_name=run_name):
+        mlflow.set_tags({"chapter": chapter, "code_version": code_version(), "final_model": "true"})
+        mlflow.log_params(params)
+        logged = getattr(mlflow, flavor).log_model(model, name="model", signature=signature)
+        for name, content in (dicts or {}).items():
+            mlflow.log_dict(content, f"{name}.json")
+    return logged.model_uri  # the address 09b registers from
+
+
+def test_set_opened(experiment: str, profile: str = "qafi") -> pd.DataFrame:
+    """Runs that already read the locked test proteins (tag test_set = opened); empty if none did."""
+    mlflow = _mlflow(experiment, profile)
+    return mlflow.search_runs(filter_string="tags.test_set = 'opened'")
+
+
+def test_run(
+    experiment: str,
+    per_model: dict[str, pd.DataFrame],
+    gate: pd.DataFrame,
+    models: dict[str, str],
+    chapter: str = "",
+    force: bool = False,
+    profile: str = "qafi",
+) -> str:
+    """Record the one evaluation on the test proteins; refuses if one was recorded before.
+
+    The test proteins answer one question once. Looking again after changing something would let the
+    test results steer the model, which is what the locked split exists to prevent; ``force`` exists only
+    for deliberate, documented exceptions. ``models`` names the logged models that were tested (their
+    URIs), so that the registry (09b) can register exactly those.
+    """
+    earlier = test_set_opened(experiment, profile)
+    if len(earlier) and not force:
+        raise RuntimeError(f"the test set was already opened by run {earlier['run_id'].iloc[0]}")
+    mlflow = _mlflow(experiment, profile)
+    with mlflow.start_run(run_name="test_evaluation") as run:
+        mlflow.set_tags({"chapter": chapter, "code_version": code_version(), "test_set": "opened"})
+        mlflow.log_params({f"model_{name}": uri for name, uri in models.items()})
+        for name, scores in per_model.items():
+            mlflow.log_metrics({f"{name}_{k}": v for k, v in baseline.summarise(scores).items()})
+            mlflow.log_table(scores.round(4), f"test_scores_{name}.json")
+        mlflow.log_table(gate.reset_index(), "gate.json")
+        mlflow.log_metric("gate_passed", float(gate["passed"].all()))
     return run.info.run_id

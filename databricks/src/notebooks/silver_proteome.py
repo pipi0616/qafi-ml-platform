@@ -10,8 +10,11 @@
 # MAGIC - grain: one row per (uniprot_id, position, ref_aa, alt_aa)
 # MAGIC - the protein-level scores, typed as numbers, with empty strings turned into NULL
 # MAGIC - `entry_name` (the bronze column wrongly called GeneID) and the real NCBI `gene_id` from UniProt
-# MAGIC - `source_rows`: how many bronze rows collapsed into this one; `has_conflict`: whether those rows
-# MAGIC   disagreed on any protein-level score (they must not: the quality checks fail the job if they do)
+# MAGIC - `source_rows`: how many bronze rows collapsed into this one; `conflicting_columns`: the scores on
+# MAGIC   which those rows disagreed, and `has_conflict` whether there are any. A score whose copies disagree
+# MAGIC   is unknown, so it is NULL for that variant. In practice only EVE and popEVE ever disagree (0.4% of
+# MAGIC   variants in the first 2,000 proteins, apparently values of different transcripts joined to the
+# MAGIC   same position); the quality checks fail the job if any other score does.
 # MAGIC
 # MAGIC The fan-out columns are left out on purpose: which pairing is real cannot be told from this file.
 # MAGIC They stay available in bronze until they are rebuilt from their own sources.
@@ -42,8 +45,9 @@ PROTEIN_LEVEL = {
 }
 TEXT = {"GeneName", "GeneID", "VariantID", "AM_class"}
 
-firsts = ",\n        ".join(f"min({b}) AS {b}" for b in PROTEIN_LEVEL)
-conflict = "\n        OR ".join(f"coalesce(min({b}) <> max({b}), false)" for b in PROTEIN_LEVEL)
+# a score is kept only when every copy of the variant agrees on it; otherwise it is unknown (NULL)
+firsts = ",\n        ".join(f"CASE WHEN min({b}) = max({b}) THEN min({b}) END AS {b}" for b in PROTEIN_LEVEL)
+conflicting = ", ".join(f"CASE WHEN min({b}) <> max({b}) THEN '{s}' END" for b, s in PROTEIN_LEVEL.items())
 columns = ",\n    ".join(
     f"NULLIF(v.{b}, '') AS {s}" if b in TEXT else f"TRY_CAST(NULLIF(v.{b}, '') AS DOUBLE) AS {s}"
     for b, s in PROTEIN_LEVEL.items()
@@ -61,7 +65,7 @@ WITH by_variant AS (
         count(*) AS source_rows,
         {firsts},
         min(_missing_columns) AS missing_columns,
-        ({conflict}) AS has_conflict
+        filter(array({conflicting}), name -> name IS NOT NULL) AS conflicting_columns
     FROM {c}.bronze.proteome_predictions
     GROUP BY UniProtID, PositionAA, RefAA, AltAA
 ),
@@ -82,7 +86,8 @@ SELECT
     g.gene_id,
     {columns},
     v.source_rows,
-    v.has_conflict,
+    v.conflicting_columns,
+    size(v.conflicting_columns) > 0 AS has_conflict,
     NULLIF(v.missing_columns, '') AS missing_columns,
     r.accession IS NOT NULL AS in_reference_proteome
 FROM by_variant v

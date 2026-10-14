@@ -32,6 +32,9 @@ dev = [
     "xgboost>=3.0",
     "mlflow-skinny>=3.0",
     "matplotlib>=3.9",
+    "torch-geometric>=2.6",
+    "peft>=0.15",
+    "optuna>=4.0",
 ]
 
 # PyTorch's default Linux wheels bundle CUDA (gigabytes); tests and CI only need the CPU build.

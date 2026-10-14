@@ -5,8 +5,8 @@ models:
     description: >
       Residues of the proteins in the split, one row per residue: what the features need to know about a
       position whatever the substitution - ESM-2's view of it, its place in the AlphaFold structure and how
-      conserved its neighbours in space are (notebook 07f). The same model, run with residue_scope = proteome,
-      feeds proteome-wide prediction, so training and prediction read identical values.
+      conserved its neighbours in space are (notebook 07f). Its SQL is the macro residue_features, shared with
+      dim_residue_proteome, so training and proteome-wide prediction read values computed the same way.
     columns:
       - name: uniprot_id
         description: UniProt accession.
@@ -39,6 +39,22 @@ models:
         description: Half-sphere exposure - C-alpha atoms within 13 angstrom on the opposite side.
       - name: neighbour_entropy
         description: Mean esm_entropy of the residues within 10 angstrom; low = a conserved neighbourhood.
+
+  - name: dim_residue_proteome
+    description: >
+      dim_residue for every protein of the human reference proteome (20,652 proteins, 11.4 million residues):
+      what the released models read when they score the proteome (notebook 09c). Same macro as dim_residue.
+      Residues of the 141 proteins without an AlphaFold model have no structure values.
+    columns:
+      - name: uniprot_id
+        description: UniProt accession.
+        data_tests: [not_null]
+      - name: position
+        description: Position in the canonical UniProt sequence, starting at 1.
+        data_tests: [not_null]
+      - name: logprobs
+        description: ESM-2 log-probability of each of the 20 amino acids here, in the order ACDEFGHIKLMNPQRSTVWY.
+        data_tests: [not_null]
 
   - name: fct_variant_features
     description: >

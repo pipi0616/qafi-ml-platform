@@ -42,12 +42,15 @@ def select(groups: str = "all") -> list[str]:
 
 
 def amino_acid_table() -> pd.DataFrame:
-    """One row per amino acid: Kyte-Doolittle hydrophobicity, volume and charge (the seed ``amino_acid``)."""
+    """One row per amino acid: three-letter code, Kyte-Doolittle hydrophobicity, volume and charge (the seed
+    ``amino_acid``). The three-letter code reads variant names such as p.Arg175His (ClinVar, 09c)."""
+    from Bio.SeqUtils import seq3
     from Bio.SeqUtils.ProtParamData import kd
 
     return pd.DataFrame(
         {
             "aa": list(AMINO_ACIDS),
+            "code3": [seq3(aa) for aa in AMINO_ACIDS],
             "hydrophobicity": [kd[aa] for aa in AMINO_ACIDS],
             "volume": [VOLUME[aa] for aa in AMINO_ACIDS],
             "charge": [CHARGE.get(aa, 0) for aa in AMINO_ACIDS],
