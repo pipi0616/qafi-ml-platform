@@ -21,6 +21,8 @@ def test_auroc_orients_every_score_and_compares_them_on_shared_variants():
     assert (
         table.attrs["shared_variants"] == 300 and table.loc["AlphaMissense", "variants (own coverage)"] == 300
     )
+    one_class = scoring.auroc(df[~df["pathogenic"]])  # a small sample may hold only benign variants
+    assert one_class["AUROC (own coverage)"].isna().all()
 
 
 def test_upload_resumes_retries_and_removes_files_that_are_not_ours(tmp_path, monkeypatch):

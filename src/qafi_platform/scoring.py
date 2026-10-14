@@ -133,6 +133,12 @@ def auroc(df: pd.DataFrame) -> pd.DataFrame:
     signs = {**dict.fromkeys(SCORES, 1), **{column: sign for column, (_, sign) in PUBLISHED.items()}}
     present = [c for c in columns if c in df and df[c].notna().any()]
     shared = df.dropna(subset=present)
+
+    def area(part: pd.DataFrame, column: str) -> float:  # undefined unless both classes are there
+        if part["pathogenic"].nunique() < 2:
+            return np.nan
+        return roc_auc_score(part["pathogenic"], -signs[column] * part[column])
+
     rows = []
     for column in present:
         have = df[df[column].notna()]
@@ -140,12 +146,8 @@ def auroc(df: pd.DataFrame) -> pd.DataFrame:
             {
                 "score": columns[column],
                 "variants (own coverage)": len(have),
-                "AUROC (own coverage)": roc_auc_score(have["pathogenic"], -signs[column] * have[column]),
-                "AUROC (shared variants)": roc_auc_score(
-                    shared["pathogenic"], -signs[column] * shared[column]
-                )
-                if len(shared) and shared["pathogenic"].nunique() == 2
-                else np.nan,
+                "AUROC (own coverage)": area(have, column),
+                "AUROC (shared variants)": area(shared, column),
             }
         )
     table = pd.DataFrame(rows).set_index("score").round(3)
