@@ -1,4 +1,6 @@
 # Runs on every `git commit`. Install once with:  uv run pre-commit install
+# Notebook outputs (account IDs, emails, data) are stripped by a git filter instead, so they stay in your
+# notebooks and never reach git. Install once with:  uv run nbstripout --install --attributes .gitattributes
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.10
@@ -18,9 +20,3 @@ repos:
       - id: detect-private-key
       - id: detect-aws-credentials
         args: [--allow-missing-credentials]
-
-  # Notebook outputs can contain account IDs, emails or data: strip them before committing.
-  - repo: https://github.com/kynan/nbstripout
-    rev: 0.8.1
-    hooks:
-      - id: nbstripout

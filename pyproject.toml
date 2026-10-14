@@ -14,6 +14,12 @@ dependencies = [
 ]
 
 [dependency-groups]
+# The prediction API's image installs only this group (containers/api.Dockerfile, notebook 10b).
+api = [
+    "boto3>=1.43.108",
+    "fastapi>=0.143.0",
+    "uvicorn>=0.54.0",
+]
 dev = [
     "ipykernel>=6.29",
     "nbformat>=5.10",
@@ -35,7 +41,12 @@ dev = [
     "torch-geometric>=2.6",
     "peft>=0.15",
     "optuna>=4.0",
+    "nbstripout==0.8.1",
+    "httpx2>=2.13.1",
 ]
+
+[tool.uv]
+default-groups = ["dev", "api"]   # uv sync / uv run here and in CI: everything, so the API's tests run
 
 # PyTorch's default Linux wheels bundle CUDA (gigabytes); tests and CI only need the CPU build.
 [tool.uv.sources]

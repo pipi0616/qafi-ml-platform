@@ -59,6 +59,24 @@ def test_missing_columns_are_null_and_recorded(tmp_path):
     assert table["_missing_columns"].to_pylist() == ["qafi1,QAFImt"]
 
 
+def test_a_column_only_some_files_have_is_null_in_the_others(tmp_path):
+    with_median = [c for c in COLUMNS]
+    without = [c for c in COLUMNS if c != "qafisplit2_median"]
+    row = dict(zip(COLUMNS, _row("P1", 1, "M", "A"), strict=True))
+    tar = tmp_path / "two.tar.gz"
+    with tarfile.open(tar, "w:gz") as archive:
+        for name, columns in [("P1", with_median), ("P2", without)]:
+            lines = ["\t".join(columns), "\t".join({**row, "UniProtID": name}[c] for c in columns)]
+            data = ("\n".join(lines) + "\n").encode()
+            info = tarfile.TarInfo(f"exhaustive_mutagenesis_data/{name}/{name}_variants.tsv")
+            info.size = len(data)
+            archive.addfile(info, io.BytesIO(data))
+    write_bronze_parts(tar, tmp_path / "out", "v1.0")
+    table = pq.read_table(tmp_path / "out")
+    assert table["qafisplit2_median"].to_pylist() == ["", None]
+    assert table["_missing_columns"].to_pylist() == ["", "qafisplit2_median"]
+
+
 def test_unknown_column_stops_the_load(tmp_path):
     columns = [*COLUMNS, "NewScore"]
     tar = _archive(tmp_path, {"P1": [[*_row("P1", 1, "M", "A"), "0.1"]]}, columns=columns)

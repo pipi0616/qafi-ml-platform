@@ -27,10 +27,11 @@ urls = ["https://ftp.ncbi.nlm.nih.gov/pub/clinvar/tab_delimited/archive/variant_
 name = "uniprot-human"
 version = "2026_03"  # current_release URLs: check the release number before raising it
 refresh = "manual"   # every 8 weeks
-what = "Human reference proteome: sequences, entry names, gene names and ID mappings"
+what = "Human reference proteome: sequences, entry names, gene names and ID mappings; the reviewed (Swiss-Prot) entries in full, with function, disease and variant annotations, for the knowledge base (notebook 11)"
 urls = [
     "https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/reference_proteomes/Eukaryota/UP000005640/UP000005640_9606.fasta.gz",
     "https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/reference_proteomes/Eukaryota/UP000005640/UP000005640_9606.idmapping.gz",
+    "https://ftp.uniprot.org/pub/databases/uniprot/current_release/knowledgebase/taxonomic_divisions/uniprot_sprot_human.dat.gz",
 ]
 
 [[dataset]]

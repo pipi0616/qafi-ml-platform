@@ -11,6 +11,8 @@
 #   old_predictions (run in chapter 09, to compare old and new proteome-wide predictions;
 #   needs the reference tables from training_data):
 #     copy_raw ──▶ bronze_proteome ──▶ silver_proteome ──▶ quality_checks (scope proteome)
+#
+#   lake_export (notebook 10a): gold.fct_variant_effect ──▶ parquet files ──▶ upload links ──▶ the AWS lake
 
 resources:
   schemas:
@@ -281,3 +283,21 @@ resources:
           depends_on: [{ task_key: features }]
           notebook_task:
             notebook_path: ../src/notebooks/train_baseline.py
+
+    # Notebook 10a: the released scores into the AWS lake. The notebook signs the upload links first and
+    # puts them into the volume ml/files/_export; this job writes the files and uploads them.
+    lake_export:
+      name: qafi lake export
+      max_concurrent_runs: 1
+      timeout_seconds: 3600
+      email_notifications:
+        on_failure: ["${workspace.current_user.userName}"]
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: source
+          default: gold.fct_variant_effect # one release of every scored variant (notebook 09c)
+      tasks:
+        - task_key: export_lake
+          notebook_task:
+            notebook_path: ../src/notebooks/export_lake.py

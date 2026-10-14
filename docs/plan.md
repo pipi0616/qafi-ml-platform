@@ -46,6 +46,7 @@
 | 6 | 对外 API 和 GenAI 放在 AWS | 公司里对外服务一般不放在数据平台里；Bedrock 是 AWS 上 GenAI 的标准入口 |
 | 7 | **最终目标：用新流程重新预测全蛋白组**；训练数据和全蛋白组的特征都从 raw 重算 | 现有全蛋白组预测是旧方法算的，不一定对，只作对照（09 号新旧对比）。**2026-10-08 你决定：特征按公司标准重写，加入深度学习，不搬旧代码**（旧代码依赖 PSI-BLAST、Arpeggio 和复现不了的统计表，还有泄漏问题）。新特征：ESM-2 语言模型 + AlphaFold 结构 + 理化，全蛋白组也能算 |
 | 8 | 所有原始数据只从官方来源进 raw，版本写死 | 可复现、可追溯；以前自己整理的文件只当参照答案，不当数据源 |
+| 9 | **Bedrock 部分（11、12 号）放在爱尔兰 eu-west-1**，其余仍在法兰克福（2026-10-14 你决定） | 免费计划不支持跨区域推理，而法兰克福本地没有 Claude；爱尔兰本地有 Claude Haiku 4.5 / Sonnet 5、Titan 嵌入模型和 S3 Vectors。数据仍在欧盟，不用改账号计划 |
 
 ## 3 · 文件夹结构和三条工作规则
 
@@ -113,7 +114,7 @@ qafi-ml-platform/
 | 限制 | 影响 | 对策 |
 |---|---|---|
 | 不能用 AWS Organizations / IAM Identity Center，一旦加入额度立即作废 | 00 号的登录方式；没法做多账号 | IAM 用户 + MFA + `aws login` 临时凭证；一个账号按名字分环境 |
-| Bedrock 不支持跨区域推理 | 11、12 号的模型选择 | 11 号开始前确认法兰克福本地可用的模型 |
+| Bedrock 不支持跨区域推理 | 11、12 号的模型选择 | 已确认（2026-10-14）：法兰克福本地只有开源模型，没有 Claude → Bedrock 部分放爱尔兰（决定 9） |
 
 ---
 
@@ -139,6 +140,10 @@ qafi-ml-platform/
 - [x] **00 · 云账号与安全基线**（2026-10-07 完成：MFA、预算报警、账户级 S3 禁止公开）
 - [x] **01 · Terraform**（2026-10-07 完成：21 个资源已 apply）
 - [x] **02 · 工程化代码库 + CI/CD**（2026-10-08 完成：CI 5 项全绿，OIDC 登录 AWS 成功；修过两次红：`setup-uv@v10` 标签不存在、GitHub 改用带永久编号的 OIDC 写法）
+- [ ] **12 · Agent**（2026-10-14 写好；护栏已在 AWS 上试通，Agent 本身等 Claude 首次使用申请和 10b 的 API：Claude 工具调用 + 自己写的循环（`qafi_platform.agent`：三个只读工具 `get_variant_scores`、`get_position_scores`（10b API，签名调用）、`search_knowledge`（11 号知识库）；工具出错交回模型；最多 6 轮；每次调用记录输入、耗时、错误）；托管的 Bedrock Agents 要跨区域，免费计划不行。护栏 `infra/dev/agent.tf`（爱尔兰，经典档位，ApplyGuardrail 不依赖模型）：禁止"针对具体某人的医疗建议"、遮盖邮箱和电话（问题和回答两侧都要单独打开）、拦截提示词攻击、依据检查 0.7 / 切题 0.5；每次改策略自动发布新版本。实测：研究问题放行、个人医疗问题和提示词攻击被拦、邮箱遮盖后继续回答；**依据要写成句子**：同一正确回答对 JSON 依据只得 0.54（误拦），对句子依据 0.97，编造的回答 0.00 → `agent.evidence` 把工具结果翻译成句子。`agent.ask`：护栏 → Agent → 护栏，被拒的问题不会运行 Agent。评估 7 个任务：工具、事实、拒绝）
+- [ ] **11 · RAG 知识库**（2026-10-14 写好；知识库已在 AWS 上建好、检索试通，生成等 Claude 首次使用申请：Bedrock 部分放爱尔兰（决定 9）。资料：UniProt Swiss-Prot 人类 2026_03（`uniprot_sprot_human.dat.gz` 加进 `config/sources.toml`，送货员 Lambda 搬进 raw）→ `qafi_platform.knowledge.documents` 每个蛋白一篇 Markdown（功能、定位、疾病、区域、天然突变写成 R175H 格式、实验诱变；去掉证据代码和 PubMed 列表；基因名里的证据代码也要去掉；无基因名的 148 个蛋白不放空值，否则知识库拒收）+ 你的 IJMS 论文 docx。`infra/dev/knowledge.tf`：S3（SSE-S3，公开资料）、S3 Vectors 索引 1024 维余弦、知识库（Titan Text Embeddings V2）、两个数据源（蛋白固定 300 词 + 20% 重叠；论文语义切段）。导入约 250 篇/分钟。Claude 在爱尔兰本区域只能走 `bedrock-mantle`（Anthropic Messages API，SigV4 签名，`qafi_platform.claude`），所以不用知识库自带的检索加生成，改成检索和生成两步（`knowledge.retrieve` + `knowledge.answer`：只用编号段落、标出处、找不到就说找不到）。检索 0.4 秒。评估 11 题：hit@5 + 关键词 + 一题无答案）
+- [ ] **10b · 对外 API：FastAPI → 容器 → Lambda → API Gateway**（2026-10-14 写好；本机部分已在真实 Athena 上试通，镜像、ECR、Lambda、API Gateway 等打分跑完后再试：`qafi_platform.api`（FastAPI，4 个地址 `/health`、`/v1/proteins/{protein}`、`…/variants/{variant}`、`…/positions/{position}`；输入先按格式检查，值作为 Athena 执行参数传入，不拼 SQL；内存缓存 + Athena 60 分钟结果复用；每个回答带数据版本和两个模型的注册表版本）；`qafi_platform.athena`（不依赖 pandas 的查询器）；镜像 `containers/api.Dockerfile`（只装 `api` 依赖组，arm64，AWS Lambda Web Adapter 1.1.0，同一个镜像本机和 Lambda 都能跑）；`infra/dev/api.tf`（ECR 标签不可改、推送即扫描、留 5 个；Lambda 按镜像摘要部署，摘要写在 `build/api_image.txt`；专属最小权限角色；HTTP API 只放行 IAM 签名请求，限流每秒 2 个；访问日志）；`qafi_platform.api_client` 签名调用；CI 构建 API 镜像并检查 `/health`。实测本机：第一次查询 1.3–1.5 秒，重复 0 秒；错误输入 422/404 且不查数据）
+- [ ] **10a · 数据湖和 Athena**（2026-10-14 写好并在 AWS 上试通，待用户运行：`infra/dev/lake.tf`（Glue 库 `qafi_dev_lake`、表 `variant_effect` 和 `proteins` 按 `release` 分区；Athena 工作组 `qafi-dev`：结果加密、7 天删除、单次扫描上限 5 GB）；导出走临时**上传**链接（`qafi_platform.lake.upload_plan`，每个文件名一个、6 小时有效，Databricks 手里没有 AWS 密钥）+ 新任务 `qafi lake export`（`repartitionByRange` 按蛋白切 16 个文件、段内排序、约 16 MB 一小段，空文件不传，清单最后传）；一个版本只写一次；`lake.check` 按清单核对；`lake.publish` 登记分区并把 `*_current` 视图指向这一版（数据的"冠军"标签）。样本（303 个蛋白）实测：16 个文件编号首尾相接、KMS 加密；按编号查 2.1 MB、全表找 R175H 16.3 MB、全蛋白组统计 21.5 MB，均 1–2 秒；放大 20 倍确认每个文件分成多段。意外发现：按基因名查也很快（Parquet 字典），讲义据此改为"按编号 vs 按突变写法"对比）
 - [ ] **09c · 全蛋白组打分**（2026-10-14 写好并试通，待用户运行并提交：`gold.dim_residue_proteome`（和 `dim_residue` 共用 dbt 宏 `residue_features`，20,652 个蛋白、11,456,418 个残基，一个不少）下载到 Mac（1.44 GB；`lakehouse.download` 断网会重试半小时、写完才改名）；突变特征在 Python 里重算，和 SQL 在 84 万个训练突变上逐个比对（最大差 3e-5，float32 舍入）；`python -m qafi_platform.scoring` 在后台按 `@champion` 从注册表取模型，ESM 向量边算边用、不存，GPU 形状固定，每 50 个蛋白存一份、可续跑，内存压力到"危急"就卸载模型让路（开着 VS Code 的 Mac 常年"警告"，所以不等"正常"）。实测 300 个蛋白：每秒 582 个残基，突变数 = 残基 × 19 一个不少，**全量约 5.5 小时**、结果约 3.4 GB；上传逐个文件、可续传（`scoring.upload`），装成 `ml.proteome_scores`（每行带版本和模型版本），产品视图 `gold.fct_variant_effect`（加基因名）。TP53 试跑：结构性热点 R175H 判有害，DNA 接触热点 R248Q、R273H 判不出来（模型主要学稳定性），写进讲义。外部验证 `gold.fct_clinvar_missense`：只用我们数据之外的蛋白，16.8 万个突变（4.9 万致病）；300 个蛋白的预览：功能分 AUROC 0.92、AlphaMissense 0.97。新旧对比预览：每个蛋白内和旧 QAFI2 相关 0.71）
 - [ ] **09b · 模型注册**（2026-10-14 写好并试通，待用户运行并提交：Unity Catalog 注册表 `qafi_dev.ml.stability_head`、`qafi_dev.ml.function_trees`；只有 09a 的考试过了闸门才注册，版本带考试记录的标签，`@champion` 别名指向上线版本；换算表跟着运行走（`registry.distributions`）；回滚 = 挪别名。试通时注册的版本都已删除）
 - [ ] **09a · 定版和考试**（2026-10-14 写好并试通，待用户运行并提交：Optuna 调稳定性网络（隐藏层、dropout、学习率、轮数、权重衰减，第 0 次试验用现有设置）；在全部训练蛋白上训练最终模型，分数换成百分位（换算表来自交叉验证预测，1,001 个分位点）；旧预测全量装表（约 1 小时，EVE/popEVE 冲突记为空）；**测试蛋白只打开一次**（MLflow 记 `test_set=opened`，再开会报错），三条上线规则（各自超过一半的实验更好且 p < 0.05）；同题对照 AlphaMissense、EVE、popEVE、CPT-1、旧 QAFI2。试跑（3 次试验）最好 0.631；功能集成交叉验证 0.432）

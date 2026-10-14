@@ -6,9 +6,10 @@ to disk. Every value is kept exactly as written, as a string: an empty cell stay
 cleaning happen in silver. Each row records which archive member it came from and the dataset
 version, so any bronze row can be traced back to its source file.
 
-Not every file has every column (some lack qafi1, QAFImt, qafisplit1 and qafisplit2). A column
-missing from a file is NULL in bronze, unlike an empty cell (""), and ``_missing_columns`` lists
-what that file lacked. A column we don't know stops the load: the format has changed.
+Not every file has every column (some lack qafi1, QAFImt, qafisplit1 and qafisplit2; only some have
+qafisplit2_median, found when the whole archive was first loaded in chapter 09). A column missing from a
+file is NULL in bronze, unlike an empty cell (""), and ``_missing_columns`` lists what that file lacked.
+A column we don't know stops the load: the format has changed.
 """
 
 from __future__ import annotations
@@ -24,8 +25,8 @@ import pyarrow.parquet as pq
 COLUMNS = [
     "UniProtID", "GeneName", "GeneID", "chr", "hg19_pos", "PositionAA", "RefAA", "AltAA", "VariantID",
     "AM_pathogenicity", "AM_class", "popEVE", "EVE", "CPT1", "REVEL", "BayesDel",
-    "qafi1", "qafi2", "QAFImt", "qafisplit1", "qafisplit2", "qafisplit3", "QAFIClass1", "QAFIClass2",
-    "QAFIMeta_v1", "QAFIMeta_v2", "QAFIMeta_v3", "QAFIMeta_v4",
+    "qafi1", "qafi2", "QAFImt", "qafisplit1", "qafisplit2", "qafisplit2_median", "qafisplit3",
+    "QAFIClass1", "QAFIClass2", "QAFIMeta_v1", "QAFIMeta_v2", "QAFIMeta_v3", "QAFIMeta_v4",
 ]  # fmt: skip
 
 _PARSE = pacsv.ParseOptions(delimiter="\t", quote_char=False)

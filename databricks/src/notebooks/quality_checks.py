@@ -16,6 +16,7 @@ dbutils.widgets.text("scope", "dms")
 c = dbutils.widgets.get("catalog")
 scope = dbutils.widgets.get("scope")
 AA = "'^[ACDEFGHIKLMNPQRSTVWY]$'"
+REF = "'^[ACDEFGHIKLMNPQRSTVWYUX]$'"  # UniProt sequences also use U (selenocysteine) and X (unknown)
 
 # --- training data: ProteinGym DMS ---------------------------------------------------------------
 d, a = f"{c}.silver.dms_scores", f"{c}.silver.dms_assay_audit"
@@ -61,9 +62,10 @@ PROTEOME = [
         True,
     ),
     ("one row per variant", f"SELECT count(*) = count(DISTINCT uniprot_id, position, ref_aa, alt_aa) FROM {s}", True),
-    (
-        "QAFI, AlphaMissense and CPT-1 agree in every copy of a variant",
-        f"SELECT count_if(size(array_except(conflicting_columns, array('eve', 'popeve'))) > 0) = 0 FROM {s}",
+    (  # the whole archive (chapter 09) has 4 such variants in 217 million, e.g. AlphaMissense 0.284 in one copy
+        # and 0.28 in another; silver sets those values to NULL. More than 1 in a million would be systematic.
+        "QAFI, AlphaMissense and CPT-1 agree in every copy of a variant, but for at most 1 in a million",
+        f"SELECT avg(CAST(size(array_except(conflicting_columns, array('eve', 'popeve'))) > 0 AS DOUBLE)) <= 1e-6 FROM {s}",
         True,
     ),
     (  # known in the source file: EVE and popEVE of different transcripts; those values are set to NULL
@@ -71,9 +73,9 @@ PROTEOME = [
         f"SELECT avg(CAST(has_conflict AS DOUBLE)) < 0.01 FROM {s}",
         False,
     ),
-    (
-        "amino acids are standard and actually change",
-        f"SELECT count_if(NOT ref_aa RLIKE {AA} OR NOT alt_aa RLIKE {AA} OR ref_aa = alt_aa) = 0 FROM {s}",
+    (  # the whole archive (chapter 09) also predicts from U in 14 selenoproteins and from X in 2 proteins
+        "new amino acids are standard, reference ones are letters UniProt uses, and they differ",
+        f"SELECT count_if(NOT ref_aa RLIKE {REF} OR NOT alt_aa RLIKE {AA} OR ref_aa = alt_aa) = 0 FROM {s}",
         True,
     ),
     ("probability scores lie between 0 and 1", f"SELECT count_if({outside}) = 0 FROM {s}", True),
