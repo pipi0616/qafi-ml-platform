@@ -48,7 +48,8 @@ def test_waiting_for_a_receipt_that_never_comes_times_out(s3):
 
 def test_every_configured_source_fits_the_raw_rules():
     sources = ingest.load_sources(Path(__file__).parents[2] / "config" / "sources.toml")
-    assert len(sources) == 14  # 13, plus the Swiss-Prot entries for the knowledge base (notebook 11)
+    # 13, plus the Swiss-Prot entries for the knowledge base (11), plus 4 for the stability chapter (14a)
+    assert len(sources) == 18
     for source in sources:
         assert source["url"].startswith("https://")
         problems = check(source["key"], 10, b"")  # empty content: only naming and type rules apply

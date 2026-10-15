@@ -229,6 +229,31 @@ def model_run(
     return logged.model_uri  # the address 09b registers from
 
 
+def experiment_run(
+    experiment: str,
+    run_name: str,
+    params: dict,
+    metrics: dict,
+    tables: dict[str, pd.DataFrame] | None = None,
+    chapter: str = "",
+    profile: str = "qafi",
+) -> str:
+    """Record one run that is not a cross-validation: its settings, its numbers and its result tables.
+
+    ``cv_run`` expects a score per labelled dataset and writes ``ml.cv_scores``; the stability chapter
+    (14a) scores domains of another dataset entirely, so it records here instead. Everything still lands
+    in the same MLflow experiment, with the same code-version tag, so runs stay comparable and findable.
+    """
+    mlflow = _mlflow(experiment, profile)
+    with mlflow.start_run(run_name=run_name) as run:
+        mlflow.set_tags({"chapter": chapter, "code_version": code_version(), "trained_on": "laptop"})
+        mlflow.log_params(params)
+        mlflow.log_metrics(metrics)
+        for name, table in (tables or {}).items():
+            mlflow.log_table(table, f"{name}.json")
+    return run.info.run_id
+
+
 def test_set_opened(experiment: str, profile: str = "qafi") -> pd.DataFrame:
     """Runs that already read the locked test proteins (tag test_set = opened); empty if none did."""
     mlflow = _mlflow(experiment, profile)

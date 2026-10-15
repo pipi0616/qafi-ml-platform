@@ -35,6 +35,9 @@ SIGNATURES = {
     ".parquet": (0, b"PAR1"),
     ".tar": (257, b"ustar"),  # tar archives carry their signature in the first header block
     ".safetensors": (8, b"{"),  # model weights: 8 bytes giving the header's length, then the JSON header
+    # A pickle holds instructions, not just data, so loading one runs code. Accepted here because some
+    # publishers ship their splits this way; it is read with a restricted unpickler (qafi_core.stability).
+    ".pkl": (0, b"\x80\x04"),  # protocol 4: PROTO opcode, then the version
 }
 TEXT_SUFFIXES = (".tsv", ".csv", ".txt", ".json")
 CHECKSUM_FIELDS = ("ChecksumCRC64NVME", "ChecksumCRC32", "ChecksumCRC32C", "ChecksumSHA256", "ChecksumSHA1")

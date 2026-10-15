@@ -66,6 +66,26 @@ what = "AlphaFold predicted structures of the human proteome, version 6 (latest)
 urls = ["https://ftp.ebi.ac.uk/pub/databases/alphafold/{version}/UP000005640_9606_HUMAN_{version}.tar"]
 
 [[dataset]]
+name = "tsuboyama"
+version = "v2_230420"  # Zenodo record 7992926; the version the Nature paper cites
+refresh = "manual"     # a finished publication: it does not get new releases
+what = "Mega-scale folding stability (Tsuboyama 2023): folding free energies in kcal/mol for 331 natural and 148 designed domains, with the AlphaFold models they were measured on (notebook 14a)"
+urls = [
+    "https://zenodo.org/records/7992926/files/Processed_K50_dG_datasets.zip",
+    "https://zenodo.org/records/7992926/files/AlphaFold_model_PDBs.zip",
+]
+
+[[dataset]]
+name = "thermompnn"
+version = "370f76ec62bd929f7425e311d8df04a0d094990f"  # the GitHub commit of Kuhlman-Lab/ThermoMPNN
+refresh = "manual"
+what = "The published train/validation/test split of the mega-scale data (MMseqs2 clusters at 25% identity), so our stability numbers are comparable with ThermoMPNN's and SPURS' (notebook 14a)"
+urls = [
+    "https://raw.githubusercontent.com/Kuhlman-Lab/ThermoMPNN/{version}/dataset_splits/mega_splits.pkl",
+    "https://raw.githubusercontent.com/Kuhlman-Lab/ThermoMPNN/{version}/dataset_splits/megascale_clusters.tsv",
+]
+
+[[dataset]]
 name = "esm2-650m"
 version = "08e4846e537177426273712802403f7ba8261b6c"  # the Hugging Face commit of facebook/esm2_t33_650M_UR50D
 refresh = "manual"  # a new model changes every language-model feature
