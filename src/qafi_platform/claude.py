@@ -1,55 +1,37 @@
-"""Claude on Amazon Bedrock, inside one Region (notebooks 11 and 12).
+"""Claude on Amazon Bedrock (notebooks 11 and 12).
 
-The free AWS plan cannot use cross-Region inference, and in Ireland (eu-west-1) Claude runs inside the Region
-only through the ``bedrock-mantle`` endpoint, which speaks Anthropic's own Messages API. Requests are signed
-with your AWS credentials (Signature Version 4) like every other AWS call: no API key to store anywhere.
+Claude is called through the EU inference profile (model IDs that start with ``eu.``): Bedrock sends each
+request to whichever EU Region has capacity, so the data stays in the EU. Tested on this account on
+2026-10-15: the single-Region path (the ``bedrock-mantle`` endpoint) is not available to it, the EU profile
+is. Requests and replies use Anthropic's Messages format through the standard ``bedrock-runtime`` InvokeModel
+API; boto3 signs them with your AWS credentials and retries when Bedrock is busy.
 """
 
 from __future__ import annotations
 
 import json
-import time
-import urllib.error
-import urllib.request
 
-REGION = "eu-west-1"  # decision 9 in docs/plan.md
-HAIKU = "anthropic.claude-haiku-4-5"
-SONNET = "anthropic.claude-sonnet-5"
-PRICES = {HAIKU: (1.0, 5.0)}  # USD per million input and output tokens (Bedrock on-demand, Standard tier)
+REGION = "eu-west-1"  # where the knowledge base and the guardrail live (decision 9 in docs/plan.md)
+HAIKU = "eu.anthropic.claude-haiku-4-5-20251001-v1:0"
+PRICES = {HAIKU: (1.1, 5.5)}  # USD per million input and output tokens: EU profile, Standard tier
+_clients = {}
 
 
-def messages(session, body: dict, region: str = REGION, timeout: float = 120, attempts: int = 5) -> dict:
-    """POST ``body`` to the Messages API and return Claude's reply; busy or failing servers are retried."""
-    from botocore.auth import SigV4Auth
-    from botocore.awsrequest import AWSRequest
+def client(session):
+    """A bedrock-runtime client for ``session`` (one per session), retrying with backoff when throttled."""
+    if id(session) not in _clients:
+        from botocore.config import Config
 
-    url = f"https://bedrock-mantle.{region}.api.aws/anthropic/v1/messages"
-    data = json.dumps(body)
-    for attempt in range(attempts):
-        request = AWSRequest(
-            method="POST",
-            url=url,
-            data=data,
-            headers={"content-type": "application/json", "anthropic-version": "2023-06-01"},
-        )
-        SigV4Auth(session.get_credentials().get_frozen_credentials(), "bedrock-mantle", region).add_auth(
-            request
-        )
-        try:
-            outgoing = urllib.request.Request(
-                url, data=data.encode(), headers=dict(request.headers), method="POST"
-            )
-            with urllib.request.urlopen(outgoing, timeout=timeout) as response:
-                return json.loads(response.read())
-        except urllib.error.HTTPError as error:
-            detail = error.read().decode(errors="replace")
-            if error.code not in (429, 500, 502, 503, 529) or attempt == attempts - 1:
-                raise RuntimeError(f"Claude answered {error.code}: {detail}") from None
-        except (urllib.error.URLError, TimeoutError):
-            if attempt == attempts - 1:
-                raise
-        time.sleep(2**attempt)  # signed again on the next attempt: a signature is valid for minutes only
-    raise AssertionError("unreachable")
+        config = Config(retries={"mode": "adaptive", "max_attempts": 8}, read_timeout=120)
+        _clients[id(session)] = session.client("bedrock-runtime", region_name=REGION, config=config)
+    return _clients[id(session)]
+
+
+def messages(session, body: dict) -> dict:
+    """Send a Messages API ``body`` (its ``model`` chooses the inference profile); returns Claude's reply."""
+    request = {"anthropic_version": "bedrock-2023-05-31", **{k: v for k, v in body.items() if k != "model"}}
+    response = client(session).invoke_model(modelId=body["model"], body=json.dumps(request))
+    return json.loads(response["body"].read())
 
 
 def cost(model: str, usage: dict) -> float | None:

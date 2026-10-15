@@ -46,7 +46,9 @@ def test_the_agent_runs_the_tools_claude_asks_for_and_returns_its_answer(monkeyp
     assert result["answer"] == "Likely damaging (QAFI score); seen in LFS (P04637.md)."
     assert [s["tool"] for s in result["steps"]] == ["get_variant_scores", "search_knowledge"]
     assert (
-        result["turns"] == 2 and result["input_tokens"] == 2000 and result["usd"] == round(2 * 1500 / 1e6, 6)
+        result["turns"] == 2
+        and result["input_tokens"] == 2000
+        and result["usd"] == round((2000 * 1.1 + 200 * 5.5) / 1e6, 6)
     )
     second = sent[1]["messages"]
     assert [m["role"] for m in second] == ["user", "assistant", "user"]

@@ -122,53 +122,28 @@ def test_the_answer_rests_on_the_numbered_passages_and_says_which(monkeypatch):
     assert "[2] (source: P04637.md)\nTP53 is a tumor suppressor." in seen["messages"][0]["content"]
     assert "Use only the" in seen["system"] and seen["model"] == claude.HAIKU
     assert result["cited"] == ["P04637.md"]  # [7] does not exist and is ignored
-    assert result["usd"] == round((1000 * 1.0 + 100 * 5.0) / 1e6, 6)
+    assert result["usd"] == round((1000 * 1.1 + 100 * 5.5) / 1e6, 6)
 
 
-def test_claude_requests_are_signed_and_retried_when_busy(monkeypatch):
-    import urllib.error
+def test_claude_is_called_through_the_eu_profile_with_retries():
+    calls, made = [], []
 
-    calls = []
+    class Runtime:
+        def invoke_model(self, modelId, body):
+            calls.append((modelId, json.loads(body)))
+            return {"body": io.BytesIO(json.dumps({"content": [], "usage": {}}).encode())}
 
-    def urlopen(request, timeout):
-        calls.append(request)
-        if len(calls) == 1:
-            raise urllib.error.HTTPError(request.full_url, 529, "overloaded", {}, io.BytesIO(b"busy"))
-        return io.BytesIO(json.dumps({"content": [], "usage": {}}).encode())
+    def make_client(service, region_name, config):
+        made.append((service, region_name, config.retries))
+        return Runtime()
 
-    monkeypatch.setattr(claude.urllib.request, "urlopen", urlopen)
-    monkeypatch.setattr(claude.time, "sleep", lambda s: None)
-    session = NS(get_credentials=lambda: NS(get_frozen_credentials=lambda: NS(
-        access_key="AKIDEXAMPLE", secret_key="secret", token=None)))  # fmt: skip
-    claude.messages(session, {"model": claude.HAIKU})
-    assert (
-        len(calls) == 2
-        and calls[1].full_url == "https://bedrock-mantle.eu-west-1.api.aws/anthropic/v1/messages"
-    )
-    authorization = calls[1].get_header("Authorization")
-    assert "/eu-west-1/bedrock-mantle/aws4_request" in authorization
-    assert calls[1].get_header("Anthropic-version") == "2023-06-01"
-
-
-def test_a_refused_request_says_why():
-    import urllib.error
-
-    import pytest
-
-    def urlopen(request, timeout):
-        raise urllib.error.HTTPError(
-            request.full_url, 403, "no", {}, io.BytesIO(b'{"error": "not available"}')
-        )
-
-    session = NS(get_credentials=lambda: NS(get_frozen_credentials=lambda: NS(
-        access_key="AKIDEXAMPLE", secret_key="secret", token=None)))  # fmt: skip
-    original = claude.urllib.request.urlopen
-    claude.urllib.request.urlopen = urlopen
-    try:
-        with pytest.raises(RuntimeError, match="403.*not available"):
-            claude.messages(session, {"model": claude.HAIKU})
-    finally:
-        claude.urllib.request.urlopen = original
+    session = NS(client=make_client)
+    claude.messages(session, {"model": claude.HAIKU, "max_tokens": 10, "messages": []})
+    claude.messages(session, {"model": claude.HAIKU, "max_tokens": 10, "messages": []})
+    assert made == [("bedrock-runtime", "eu-west-1", {"mode": "adaptive", "max_attempts": 8})]  # one client
+    model, body = calls[0]
+    assert model.startswith("eu.anthropic.") and "model" not in body
+    assert body["anthropic_version"] == "bedrock-2023-05-31" and body["max_tokens"] == 10
 
 
 def test_ingestion_is_started_and_followed_until_it_completes(monkeypatch):
