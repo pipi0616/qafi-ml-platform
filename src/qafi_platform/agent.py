@@ -72,9 +72,12 @@ TOOLS = [
 
 SYSTEM = (
     "You are a research assistant for interpreting human missense variants. Use the tools: the QAFI scores "
-    "for predictions, the knowledge base for what is known. Say where each fact comes from: (QAFI score) or "
-    "the knowledge base source document. QAFI scores are model predictions for research, not a clinical "
-    "classification. If the tools do not give an answer, say so. Answer in at most 200 words."
+    "for predictions, the knowledge base for what is known. Write the answer as short plain sentences, no "
+    "headings or bold, each restating a tool result and naming its source in brackets: (QAFI score) or the "
+    "knowledge base document. Compare variants only through their numbers, e.g. 'R175H has the lower "
+    "function score (0.30 against 0.64)'. State nothing the tool results do not say: every answer is checked "
+    "against them. QAFI scores are model predictions for research, not a clinical classification. If the "
+    "tools do not give an answer, say so. At most 120 words."
 )
 
 
@@ -113,21 +116,32 @@ class Toolbox:
 
 
 def evidence(name: str, output) -> str:
-    """A tool result as plain sentences, for the guardrail's grounding check: it scores an answer against
-    text, and judges JSON poorly (measured in notebook 12: 0.54 for JSON, 0.97 for the same facts as text)."""
-    meaning = "Scores are percentiles between 0 and 1; low means likely damaging."
+    """A tool result as plain sentences, for the guardrail's grounding check. It scores an answer against text
+    and judges JSON poorly (notebook 12: 0.54 for JSON, 0.97 for the same facts as sentences), and every
+    statement in the answer must be found here, including what the numbers mean."""
+    meaning = (
+        "Stability and function scores are percentiles between 0 and 1: low means likely damaging "
+        "(destabilising, loss of function), high means likely tolerated. They are model predictions for "
+        "research, not clinical classifications."
+    )
     if name == "get_variant_scores":
         label = f"{output['gene_name'] or output['uniprot_id']} {output['variant']}"
         scores = (
             f"stability score {output['stability_score']:.2f}, function score {output['function_score']:.2f}"
         )
-        return f"QAFI scores of {label}: {scores}. {meaning}"
+        zero_shot = (
+            f"ESM-2 zero-shot score {output['zero_shot']:.2f} (log-probability of the new amino acid minus "
+            "the old one; negative means less expected by the language model)"
+        )
+        return f"QAFI scores of {label}: {scores}, {zero_shot}. {meaning}"
     if name == "get_position_scores":
         listed = "; ".join(
             f"{v['variant']} stability {v['stability_score']:.2f} function {v['function_score']:.2f}"
             for v in output["variants"]
         )
         return f"QAFI scores at position {output['position']} ({output['ref_aa']}): {listed}. {meaning}"
+    if name == "error":
+        return f"The tool answered with an error: {output}"
     return "\n".join(f"From {p['source']}: {p['text']}" for p in output)
 
 
@@ -163,6 +177,7 @@ def run(session, question: str, toolbox: Toolbox, model: str = claude.HAIKU, max
                 sources.append(evidence(block["name"], output))
             except Exception as problem:  # the agent is told what went wrong and can try differently
                 output, error = {"error": str(problem)}, True
+                sources.append(evidence("error", str(problem)))  # e.g. "position 175 of TP53 is R, not G"
             steps.append(
                 {
                     "tool": block["name"],
@@ -198,11 +213,13 @@ def check(
     tool results as ``grounding`` and the question as ``query``: the guardrail then also scores whether
     the answer is supported by those results (grounding) and answers the question (relevance).
     """
-    content = [{"text": {"text": text, "qualifiers": ["guard_content"]}}]
-    for passage in grounding or []:
-        content.append({"text": {"text": passage[:5000], "qualifiers": ["grounding_source"]}})
-    if query:
-        content.append({"text": {"text": query, "qualifiers": ["query"]}})
+    content = [{"text": {"text": text}}]
+    if grounding:  # the grounding check needs all three: the answer, its sources and the question
+        content = [{"text": {"text": text, "qualifiers": ["guard_content"]}}]
+        content += [
+            {"text": {"text": passage[:5000], "qualifiers": ["grounding_source"]}} for passage in grounding
+        ]
+        content.append({"text": {"text": query or "", "qualifiers": ["query"]}})
     response = client.apply_guardrail(
         guardrailIdentifier=guardrail, guardrailVersion=version, source=source, content=content
     )

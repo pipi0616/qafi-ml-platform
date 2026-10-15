@@ -61,15 +61,14 @@ resource "aws_bedrock_guardrail" "agent" {
     }
   }
 
-  # An answer must rest on what the tools returned (grounding) and address the question (relevance).
+  # An answer must rest on what the tools returned. Thresholds measured in notebook 12: a made-up answer scores
+  # 0.00 and a correct summary of the results 0.77 to 0.97, but correct answers that compare numbers (0.31) or
+  # say that a variant does not exist (0.12) score low too. So only near-certain fabrication is blocked; the
+  # relevance filter is not used: it judged "that variant does not exist" as off topic (0.06).
   contextual_grounding_policy_config {
     filters_config {
       type      = "GROUNDING"
-      threshold = 0.7
-    }
-    filters_config {
-      type      = "RELEVANCE"
-      threshold = 0.5
+      threshold = 0.1
     }
   }
 }

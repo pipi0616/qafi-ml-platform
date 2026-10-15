@@ -19,7 +19,7 @@ def toolbox(monkeypatch):
     def get(session, url, sign=True, timeout=30):
         if url.endswith("/v1/proteins/TP53/variants/R175H"):
             body = {"uniprot_id": "P04637", "gene_name": "TP53", "variant": "R175H"}
-            return 200, {**body, "stability_score": 0.2214, "function_score": 0.3011}, 1.2
+            return 200, {**body, "stability_score": 0.2214, "function_score": 0.3011, "zero_shot": -9.13}, 1.2
         return 422, {"detail": "position 175 of TP53 is R, not G"}, 0.1
 
     monkeypatch.setattr(api_client, "get", get)
@@ -56,8 +56,11 @@ def test_the_agent_runs_the_tools_claude_asks_for_and_returns_its_answer(monkeyp
     assert results[0]["tool_use_id"] == "t1" and '"stability_score": 0.2214' in results[0]["content"]
     assert "P04637.md" in results[1]["content"]
     assert result["sources"] == [  # sentences for the grounding check
-        "QAFI scores of TP53 R175H: stability score 0.22, function score 0.30. Scores are percentiles "
-        "between 0 and 1; low means likely damaging.",
+        "QAFI scores of TP53 R175H: stability score 0.22, function score 0.30, ESM-2 zero-shot score -9.13 "
+        "(log-probability of the new amino acid minus the old one; negative means less expected by the "
+        "language model). Stability and function scores are percentiles between 0 and 1: low means likely "
+        "damaging (destabilising, loss of function), high means likely tolerated. They are model predictions "
+        "for research, not clinical classifications.",
         "From P04637.md: R175H: in LFS",
     ]
     assert sent[0]["tools"] == agent.TOOLS and "not a clinical" in sent[0]["system"]
@@ -74,7 +77,8 @@ def test_a_failing_tool_is_reported_to_claude_not_raised(monkeypatch, toolbox):
         claude, "messages", lambda session, body: sent.append(json.loads(json.dumps(body))) or next(script)
     )
     result = agent.run(None, "Score of TP53 G175H?", toolbox)
-    assert result["steps"][0]["error"] is True and result["sources"] == []
+    assert result["steps"][0]["error"] is True
+    assert result["sources"] == ["The tool answered with an error: 422: position 175 of TP53 is R, not G"]
     tool_result = sent[1]["messages"][2]["content"][0]
     assert tool_result["is_error"] and "is R, not G" in tool_result["content"]
 
@@ -187,3 +191,16 @@ def test_a_refused_question_never_reaches_the_agent(monkeypatch, toolbox):
         "reasons": ["topic: Personal medical advice"],
         "run": None,
     }
+
+
+def test_an_answer_without_sources_is_checked_without_the_grounding_policy():
+    sent = {}
+
+    def apply_guardrail(**request):
+        sent.update(request)
+        return {"action": "NONE", "outputs": [], "assessments": []}
+
+    agent.check(NS(apply_guardrail=apply_guardrail), "G1", "2", "An answer.", "OUTPUT", None, "A question?")
+    assert sent["content"] == [
+        {"text": {"text": "An answer."}}
+    ]  # with no sources there is nothing to ground on
