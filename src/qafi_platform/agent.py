@@ -118,7 +118,8 @@ class Toolbox:
 def evidence(name: str, output) -> str:
     """A tool result as plain sentences, for the guardrail's grounding check. It scores an answer against text
     and judges JSON poorly (notebook 12: 0.54 for JSON, 0.97 for the same facts as sentences), and every
-    statement in the answer must be found here, including what the numbers mean."""
+    statement in the answer must be found here: the numbers as the tool returned them, what they mean, and
+    for a position which substitutions score highest and lowest."""
     meaning = (
         "Stability and function scores are percentiles between 0 and 1: low means likely damaging "
         "(destabilising, loss of function), high means likely tolerated. They are model predictions for "
@@ -126,20 +127,24 @@ def evidence(name: str, output) -> str:
     )
     if name == "get_variant_scores":
         label = f"{output['gene_name'] or output['uniprot_id']} {output['variant']}"
-        scores = (
-            f"stability score {output['stability_score']:.2f}, function score {output['function_score']:.2f}"
-        )
+        scores = f"stability score {output['stability_score']}, function score {output['function_score']}"
         zero_shot = (
-            f"ESM-2 zero-shot score {output['zero_shot']:.2f} (log-probability of the new amino acid minus "
+            f"ESM-2 zero-shot score {output['zero_shot']} (log-probability of the new amino acid minus "
             "the old one; negative means less expected by the language model)"
         )
         return f"QAFI scores of {label}: {scores}, {zero_shot}. {meaning}"
-    if name == "get_position_scores":
+    if name == "get_position_scores":  # sorted, with the extremes named: what an answer will say about them
+        ordered = sorted(output["variants"], key=lambda v: v["function_score"], reverse=True)
         listed = "; ".join(
-            f"{v['variant']} stability {v['stability_score']:.2f} function {v['function_score']:.2f}"
-            for v in output["variants"]
+            f"{v['variant']} function {v['function_score']} stability {v['stability_score']}" for v in ordered
         )
-        return f"QAFI scores at position {output['position']} ({output['ref_aa']}): {listed}. {meaning}"
+        steadiest = max(output["variants"], key=lambda v: v["stability_score"])["variant"]
+        where = f"position {output['position']} ({output['ref_aa']})"
+        return (
+            f"QAFI scores at {where}, from the highest function score (least likely damaging) to the lowest "
+            f"(most likely damaging): {listed}. Highest function score: {ordered[0]['variant']}; lowest: "
+            f"{ordered[-1]['variant']}. Highest stability score: {steadiest}. {meaning}"
+        )
     if name == "error":
         return f"The tool answered with an error: {output}"
     return "\n".join(f"From {p['source']}: {p['text']}" for p in output)

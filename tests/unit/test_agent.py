@@ -56,8 +56,8 @@ def test_the_agent_runs_the_tools_claude_asks_for_and_returns_its_answer(monkeyp
     assert results[0]["tool_use_id"] == "t1" and '"stability_score": 0.2214' in results[0]["content"]
     assert "P04637.md" in results[1]["content"]
     assert result["sources"] == [  # sentences for the grounding check
-        "QAFI scores of TP53 R175H: stability score 0.22, function score 0.30, ESM-2 zero-shot score -9.13 "
-        "(log-probability of the new amino acid minus the old one; negative means less expected by the "
+        "QAFI scores of TP53 R175H: stability score 0.2214, function score 0.3011, ESM-2 zero-shot score "
+        "-9.13 (log-probability of the new amino acid minus the old one; negative means less expected by the "
         "language model). Stability and function scores are percentiles between 0 and 1: low means likely "
         "damaging (destabilising, loss of function), high means likely tolerated. They are model predictions "
         "for research, not clinical classifications.",
@@ -204,3 +204,15 @@ def test_an_answer_without_sources_is_checked_without_the_grounding_policy():
     assert sent["content"] == [
         {"text": {"text": "An answer."}}
     ]  # with no sources there is nothing to ground on
+
+
+def test_position_evidence_names_the_extremes_an_answer_will_mention():
+    output = {"position": 124, "ref_aa": "C", "variants": [
+        {"variant": "C124S", "stability_score": 0.30, "function_score": 0.10},
+        {"variant": "C124A", "stability_score": 0.20, "function_score": 0.18},
+    ]}  # fmt: skip
+    text = agent.evidence("get_position_scores", output)
+    assert (
+        "C124A function 0.18 stability 0.2; C124S function 0.1 stability 0.3" in text
+    )  # highest function first
+    assert "Highest function score: C124A; lowest: C124S. Highest stability score: C124S." in text
