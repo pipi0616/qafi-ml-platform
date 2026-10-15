@@ -33,11 +33,12 @@ data "aws_iam_policy_document" "github_trust" {
       values   = ["sts.amazonaws.com"]
     }
 
-    # Only workflows from this repository (any branch, pull request or tag).
+    # Only workflows of this repository running on main: the repository is public, so a branch
+    # or pull request (anyone's code) never gets AWS credentials. The aws job runs only on main.
     condition {
-      test     = "StringLike"
+      test     = "StringEquals"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = ["${var.github_sub_prefix}:*"]
+      values   = ["${var.github_sub_prefix}:ref:refs/heads/main"]
     }
   }
 }
