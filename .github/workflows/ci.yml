@@ -65,7 +65,13 @@ jobs:
       - run: docker build -f containers/Dockerfile -t qafi-platform .
       - run: docker run --rm qafi-platform
       # The API's image (notebook 10b): it builds, starts, and answers its health check, no AWS needed.
-      - run: docker build -f containers/api.Dockerfile -t qafi-api .
+      # Anonymous pulls from public.ecr.aws are rate-limited per runner IP (429): try again before failing.
+      - run: |
+          for attempt in 1 2 3; do
+            docker build -f containers/api.Dockerfile -t qafi-api . && exit 0
+            sleep $((attempt * 30))
+          done
+          exit 1
       - run: |
           docker run -d --name api -p 8080:8080 qafi-api
           for i in $(seq 1 30); do curl -sf localhost:8080/health && exit 0; sleep 1; done
