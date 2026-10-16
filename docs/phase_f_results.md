@@ -112,6 +112,10 @@ functional cost (0 = most sensitive):
 SHP2's tunnel is a conformational switch at a three-domain junction, which a folded-and-functional model
 does not represent — a real boundary of the method.
 
+The map is served: 103,744 rows in the S3 lake behind a Glue table and a `sites_current` view, a
+`/v1/proteins/{protein}/sites` route on the API, and a `get_site_map` tool for the agent. KRAS's three
+oncogenic hotspots G12, G13 and Q61 rank 11th, 26th and 44th of its 189 positions by functional cost.
+
 ## 14f · Which variants a pharmacological chaperone rescues
 
 Migalastat is approved for Fabry disease; its makers published which GLA variants respond in their cell
