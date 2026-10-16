@@ -34,6 +34,8 @@ validated and in how it is built, each claim with its number and its notebook, a
 *not* claimed. Then [`docs/phase_f_results.md`](docs/phase_f_results.md) for every number on one page, and
 [`docs/why_not_just_use_alphamissense.md`](docs/why_not_just_use_alphamissense.md) for the comparison with
 published predictors.
+The same ground in Chinese, with runnable worked examples, is notebook
+[14g](notebooks/F_science/14g_contributions_and_pitch.ipynb).
 
 ## How the validation works
 
@@ -111,5 +113,5 @@ tests/          unit tests and golden tests of published numbers
 
 ## Status
 
-Complete: 00 account baseline → 13 operations, then 14a → 14f. Each chapter is a notebook that explains
+Complete: 00 account baseline → 13 operations, then 14a → 14g. Each chapter is a notebook that explains
 the step, runs it and records the result; see [`docs/plan.md`](docs/plan.md).

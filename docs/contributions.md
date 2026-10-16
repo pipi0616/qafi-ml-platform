@@ -5,6 +5,10 @@ Written for: an interviewer, hiring manager or collaborator asking "what is new 
 Everything below is a claim with a number and a notebook behind it. Where a published tool is better, this
 page says so in the same breath — that is the point of having the numbers.
 
+> A Chinese walkthrough of this page, with runnable worked examples for the thermodynamic readout,
+> the identifiability problem and additivity, is
+> [`14g`](../notebooks/F_science/14g_contributions_and_pitch.ipynb).
+
 | # | The claim | The evidence | Where |
 |---|---|---|---|
 | **1** | Predicts **two** free energies — folding and function — not one score, for a protein it has never seen | On held-out KRAS the right energy wins all 7 measured free energies, 1000/1000 bootstrap | [14c](../notebooks/F_science/14c_two_energies.ipynb) |
@@ -194,6 +198,7 @@ Stated here as plainly as the claims, because an interviewer will look for it.
 | Every number, one page | [`phase_f_results.md`](phase_f_results.md) |
 | Why not just use AlphaMissense or SPURS | [`why_not_just_use_alphamissense.md`](why_not_just_use_alphamissense.md) |
 | How to say all this out loud, per role | [`interview_pack.md`](interview_pack.md) |
+| This page in Chinese, with runnable examples | [`14g`](../notebooks/F_science/14g_contributions_and_pitch.ipynb) |
 | The published work this builds on | [`related_work.md`](related_work.md) |
 | What was built, step by step, and why | [`plan.md`](plan.md) and `notebooks/` |
 | The system around the model | [`../README.md`](../README.md) |
