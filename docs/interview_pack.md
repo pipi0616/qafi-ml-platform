@@ -1,5 +1,7 @@
 # Talking about this project
 
+The claims themselves, with their evidence, are in [`contributions.md`](contributions.md); this page is how to say them out loud.
+
 Three audiences ask for different things from the same work. Each section below has a 30-second answer, a
 2-minute answer, the questions that follow, and CV lines.
 

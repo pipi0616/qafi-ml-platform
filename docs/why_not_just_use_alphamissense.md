@@ -2,6 +2,8 @@ Written for: someone evaluating this work who already has AlphaMissense, ESM-2 o
 
 # Why not just use AlphaMissense, or SPURS?
 
+This page is one section of [`contributions.md`](contributions.md), expanded.
+
 Often you should. This page says when, and what this model gives that they do not.
 
 The short version: **they answer a different question.** AlphaMissense answers "is this variant likely

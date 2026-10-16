@@ -27,14 +27,13 @@ challenges) from research scripts into that system.
 | **Tell which variants a drug can rescue** | Migalastat's published amenability list for GLA: **AUROC 0.769** against 0.725 for a zero-shot language model, on a protein absent from every split | [14f](notebooks/F_science/14f_chaperone_rescue.ipynb) |
 | **Score the proteome and serve it** | 217,670,004 missense variants of 20,652 human proteins; a lookup scans 6.5 MB of a 2.6 GB table, ~0.15 s per request warm | [09c](notebooks/C_ml/09c_proteome_scoring.ipynb), [10](notebooks/D_serving_ai/10a_lake_athena.ipynb) |
 
-Every number is reproduced by its notebook and recorded in MLflow. The full table, with what is *not*
-claimed, is in [`docs/phase_f_results.md`](docs/phase_f_results.md).
+Every number is reproduced by its notebook and recorded in MLflow.
 
-**"Why not just use AlphaMissense, or SPURS?"** — often you should, and
-[`docs/why_not_just_use_alphamissense.md`](docs/why_not_just_use_alphamissense.md) says when. The short
-answer is that they answer a different question: each gives one number, and on the same KRAS measurements
-ESM-2 correlates 0.366 with folding and 0.362 with binding — the same answer to both. The two energies here
-lean in opposite directions, 0.23 apart.
+**Start here: [`docs/contributions.md`](docs/contributions.md)** — what is new in the method, in how it is
+validated and in how it is built, each claim with its number and its notebook, and a section on what is
+*not* claimed. Then [`docs/phase_f_results.md`](docs/phase_f_results.md) for every number on one page, and
+[`docs/why_not_just_use_alphamissense.md`](docs/why_not_just_use_alphamissense.md) for the comparison with
+published predictors.
 
 ## How the validation works
 

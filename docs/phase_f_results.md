@@ -1,5 +1,7 @@
 # Phase F: the science, in numbers
 
+What these numbers add up to is in [`contributions.md`](contributions.md); this page is the numbers themselves.
+
 Every number below is produced by a notebook in `notebooks/F_science/` and recorded in MLflow. The test
 proteins were fixed in notebook 07a and the exam was opened once; each chapter says what it held out.
 
