@@ -12,6 +12,12 @@
 # Build from the repo root, for Lambda's Graviton (arm64) processors:
 #   docker build --platform linux/arm64 -f containers/api.Dockerfile -t qafi-api .
 
+# The Lambda Web Adapter ships only as an image on public.ecr.aws, whose anonymous pulls are rate-limited
+# per IP and answer 429 often enough to break a build. CI pulls it once, caches it and builds with
+# ADAPTER pointing at its copy (.github/workflows/ci.yml); the default is the published image.
+ARG ADAPTER=public.ecr.aws/awsguru/aws-lambda-adapter:1.1.0
+FROM ${ADAPTER} AS adapter
+
 FROM ghcr.io/astral-sh/uv:python3.12-trixie-slim AS build
 WORKDIR /app
 # Only the API's dependencies (the group "api" in pyproject.toml), from the lock file: no pandas, no
@@ -21,7 +27,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --only-group api --no-install-project
 
 FROM python:3.12-slim-trixie
-COPY --from=public.ecr.aws/awsguru/aws-lambda-adapter:1.1.0 /lambda-adapter /opt/extensions/lambda-adapter
+COPY --from=adapter /lambda-adapter /opt/extensions/lambda-adapter
 WORKDIR /app
 COPY --from=build /app/.venv /app/.venv
 COPY src/qafi_platform/__init__.py src/qafi_platform/api.py src/qafi_platform/athena.py ./qafi_platform/
