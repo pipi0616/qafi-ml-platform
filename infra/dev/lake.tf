@@ -37,9 +37,18 @@ locals {
     { name = "length", type = "int", comment = "Residues in the UniProt sequence" },
     { name = "has_dms", type = "boolean", comment = "Has deep mutational scanning data in the platform" },
   ]
+  # One row per residue: what the position is for, from the two energies of notebook 14c.
+  site_columns = [
+    { name = "uniprot_id", type = "string", comment = "UniProt accession, e.g. P01116" },
+    { name = "position", type = "int", comment = "Residue number in the UniProt sequence" },
+    { name = "fold_cost", type = "float", comment = "Mean ddG of folding over the 19 substitutions, kcal/mol" },
+    { name = "func_cost", type = "float", comment = "Mean ddG of function over the 19 substitutions, kcal/mol" },
+    { name = "position_is", type = "string", comment = "structural, functional, mixed or tolerant (notebook 14e)" },
+  ]
   lake_tables = {
     variant_effect = { columns = local.variant_effect_columns, description = "Released scores of every missense variant of the human proteome" }
     proteins       = { columns = local.protein_columns, description = "The scored proteins, one row each" }
+    sites          = { columns = local.site_columns, description = "What each residue is for: structural, functional, mixed or tolerant (notebook 14e)" }
   }
 }
 
