@@ -30,6 +30,12 @@ challenges) from research scripts into that system.
 Every number is reproduced by its notebook and recorded in MLflow. The full table, with what is *not*
 claimed, is in [`docs/phase_f_results.md`](docs/phase_f_results.md).
 
+**"Why not just use AlphaMissense, or SPURS?"** — often you should, and
+[`docs/why_not_just_use_alphamissense.md`](docs/why_not_just_use_alphamissense.md) says when. The short
+answer is that they answer a different question: each gives one number, and on the same KRAS measurements
+ESM-2 correlates 0.366 with folding and 0.362 with binding — the same answer to both. The two energies here
+lean in opposite directions, 0.23 apart.
+
 ## How the validation works
 
 The thing most easily got wrong in this field is the test set, so it is worth stating plainly:
