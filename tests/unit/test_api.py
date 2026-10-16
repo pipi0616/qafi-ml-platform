@@ -18,14 +18,27 @@ VARIANT_COLUMNS = [
     ("zero_shot", "float"), ("release", "varchar"), ("stability_head_version", "varchar"),
     ("function_trees_version", "varchar"),
 ]  # fmt: skip
+SITE_COLUMNS = [("position", "integer"), ("fold_cost", "float"), ("func_cost", "float"),
+                ("position_is", "varchar")]  # fmt: skip
+SITES = [  # TP53 is mapped, the twins are not
+    (175, -2.4123, -0.3456, "structural"),
+    (248, -0.2000, -1.8765, "functional"),
+    (280, -0.1000, -0.0500, "tolerant"),
+]
 
 
 def answer(sql, parameters):
-    """The two views: TP53 has scores at position 175 (R) only; position 200 has none (not scored)."""
+    """The three views: TP53 has scores at position 175 (R) only; position 200 has none (not scored)."""
     if "FROM proteins_current" in sql:
         accession, gene = parameters
         columns = list(zip([c.strip() for c in api.PROTEIN_COLUMNS.split(",")], PROTEIN_TYPES, strict=True))
         return columns, [p for p in PROTEINS if p[0] == accession or p[1].upper() == gene]
+    if "FROM sites_current" in sql:
+        uniprot_id = parameters[0]
+        rows = SITES if uniprot_id == "P04637" else []
+        if len(parameters) > 1:
+            rows = [r for r in rows if r[3] == parameters[1]]
+        return SITE_COLUMNS, sorted(rows, key=lambda r: r[2])
     if "FROM variant_effect_current" in sql:
         uniprot_id, position = parameters[0], int(parameters[1])
         if (uniprot_id, position) != ("P04637", 175):
@@ -116,6 +129,7 @@ def test_the_documentation_lists_the_endpoints(client):
         "/v1/proteins/{protein}",
         "/v1/proteins/{protein}/variants/{variant}",
         "/v1/proteins/{protein}/positions/{position}",
+        "/v1/proteins/{protein}/sites",
     }
 
 
@@ -131,3 +145,39 @@ def test_without_a_region_the_service_still_answers_bad_input_properly(monkeypat
         assert api.lake().client.meta.region_name == "eu-central-1"
     finally:
         api.lake.cache_clear()
+
+
+def test_the_site_map_of_a_protein_is_ordered_by_functional_cost(client):
+    out = client.get("/v1/proteins/TP53/sites").json()
+
+    assert out["protein"]["uniprot_id"] == "P04637"
+    assert out["mapped"] == 3
+    assert [s["position"] for s in out["sites"]] == [248, 175, 280]  # most functionally sensitive first
+    first = out["sites"][0]
+    assert first["position_is"] == "functional"
+    assert (first["func_cost"], first["fold_cost"]) == (-1.877, -0.2)  # rounded to kcal/mol, 3 decimals
+
+
+def test_the_site_map_can_be_asked_for_one_kind_of_position(client):
+    out = client.get("/v1/proteins/TP53/sites", params={"position_is": "structural"}).json()
+
+    assert [s["position"] for s in out["sites"]] == [175]
+    assert out["mapped"] == 1
+
+
+def test_an_unknown_kind_of_position_is_refused(client):
+    assert client.get("/v1/proteins/TP53/sites", params={"position_is": "important"}).status_code == 422
+
+
+def test_a_protein_outside_the_map_says_so(client):
+    answer_ = client.get("/v1/proteins/Q00001/sites")
+
+    assert answer_.status_code == 404
+    assert "no mapped positions" in answer_.json()["detail"]
+
+
+def test_asking_for_a_kind_a_protein_does_not_have_says_which(client):
+    answer_ = client.get("/v1/proteins/TP53/sites", params={"position_is": "mixed"})
+
+    assert answer_.status_code == 404
+    assert "classed mixed" in answer_.json()["detail"]

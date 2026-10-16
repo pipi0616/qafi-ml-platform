@@ -53,6 +53,28 @@ TOOLS = [
         },
     },
     {
+        "name": "get_site_map",
+        "description": (
+            "What each position of a protein is for, from the two predicted free energies (notebook 14e): "
+            "structural (the residue holds the fold together), functional (the protein still folds but "
+            "stops working - an active site, a ligand pocket, an interface), mixed (both) or tolerant "
+            "(neither). Costs are in kcal/mol, more negative = more damaging. Only the proteins already "
+            "mapped are covered; others answer with an error. Predictions, not annotations."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "protein": {"type": "string", "description": "Gene symbol or UniProt accession"},
+                "position_is": {
+                    "type": "string",
+                    "enum": ["structural", "functional", "mixed", "tolerant"],
+                    "description": "Optional: only positions of this kind",
+                },
+            },
+            "required": ["protein"],
+        },
+    },
+    {
         "name": "search_knowledge",
         "description": (
             "Search the knowledge base: UniProt annotations of reviewed human proteins (function, location, "
@@ -72,7 +94,8 @@ TOOLS = [
 
 SYSTEM = (
     "You are a research assistant for interpreting human missense variants. Use the tools: the QAFI scores "
-    "for predictions, the knowledge base for what is known. Write the answer as short plain sentences, no "
+    "for predictions of single variants, the site map for what a position is for, the knowledge base for "
+    "what is known. Write the answer as short plain sentences, no "
     "headings or bold, each restating a tool result and naming its source in brackets: (QAFI score) or the "
     "knowledge base document. Compare variants only through their numbers, e.g. 'R175H has the lower "
     "function score (0.30 against 0.64)'. State nothing the tool results do not say: every answer is checked "
@@ -103,6 +126,15 @@ class Toolbox:
         keep = ("variant", "stability_score", "function_score")
         variants = [{k: v[k] for k in keep} for v in body["variants"]]
         return {"position": body["position"], "ref_aa": body["ref_aa"], "variants": variants}
+
+    def get_site_map(self, protein: str, position_is: str | None = None) -> dict:
+        where = f"?position_is={quote(position_is, safe='')}" if position_is else ""
+        body = self._api(f"/v1/proteins/{quote(protein, safe='')}/sites{where}")
+        return {
+            "protein": body["protein"]["gene_name"] or body["protein"]["uniprot_id"],
+            "mapped": body["mapped"],
+            "sites": body["sites"][:20],
+        }
 
     def search_knowledge(self, query: str, gene: str | None = None) -> list[dict]:
         where = {"equals": {"key": "gene_name", "value": gene.upper()}} if gene else None
@@ -144,6 +176,25 @@ def evidence(name: str, output) -> str:
             f"QAFI scores at {where}, from the highest function score (least likely damaging) to the lowest "
             f"(most likely damaging): {listed}. Highest function score: {ordered[0]['variant']}; lowest: "
             f"{ordered[-1]['variant']}. Highest stability score: {steadiest}. {meaning}"
+        )
+    if name == "get_site_map":
+        kinds = {
+            "structural": "holds the fold together",
+            "functional": "the protein still folds but stops working",
+            "mixed": "both structural and functional",
+            "tolerant": "neither: the position can be changed",
+        }
+        listed = "; ".join(
+            f"position {s['position']} is {s['position_is']} ({kinds[s['position_is']]}), "
+            f"folding cost {s['fold_cost']} kcal/mol, functional cost {s['func_cost']} kcal/mol"
+            for s in output["sites"]
+        )
+        return (
+            f"Site map of {output['protein']}, {output['mapped']} positions mapped, the most functionally "
+            f"sensitive first: {listed}. A position is called structural when changing it costs folding "
+            "energy, functional when it costs little folding energy but a lot of functional energy, mixed "
+            "when both and tolerant when neither. These are model predictions for research, not "
+            "annotations."
         )
     if name == "error":
         return f"The tool answered with an error: {output}"

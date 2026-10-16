@@ -20,6 +20,23 @@ def toolbox(monkeypatch):
         if url.endswith("/v1/proteins/TP53/variants/R175H"):
             body = {"uniprot_id": "P04637", "gene_name": "TP53", "variant": "R175H"}
             return 200, {**body, "stability_score": 0.2214, "function_score": 0.3011, "zero_shot": -9.13}, 1.2
+        if "/sites" in url:
+            sites = [
+                {"position": 248, "fold_cost": -0.2, "func_cost": -1.88, "position_is": "functional"},
+                {"position": 175, "fold_cost": -2.41, "func_cost": -0.35, "position_is": "structural"},
+            ]
+            if "position_is=functional" in url:
+                sites = [s for s in sites if s["position_is"] == "functional"]
+            protein = {
+                "uniprot_id": "P04637",
+                "gene_name": "TP53",
+                "entry_name": None,
+                "protein_name": None,
+                "length": 393,
+                "has_dms": True,
+                "release": "r1",
+            }
+            return 200, {"protein": protein, "mapped": len(sites), "sites": sites}, 1.0
         return 422, {"detail": "position 175 of TP53 is R, not G"}, 0.1
 
     monkeypatch.setattr(api_client, "get", get)
@@ -216,3 +233,41 @@ def test_position_evidence_names_the_extremes_an_answer_will_mention():
         "C124A function 0.18 stability 0.2; C124S function 0.1 stability 0.3" in text
     )  # highest function first
     assert "Highest function score: C124A; lowest: C124S. Highest stability score: C124S." in text
+
+
+def test_the_site_map_tool_asks_the_api_and_keeps_the_most_sensitive_positions(toolbox):
+    out = toolbox.call("get_site_map", {"protein": "TP53"})
+
+    assert out["protein"] == "TP53"
+    assert out["mapped"] == 2
+    assert [s["position"] for s in out["sites"]] == [248, 175]
+    assert len(out["sites"]) <= 20  # a long protein would flood the model's context
+
+
+def test_the_site_map_tool_can_ask_for_one_kind_of_position(toolbox):
+    out = toolbox.call("get_site_map", {"protein": "TP53", "position_is": "functional"})
+
+    assert [s["position"] for s in out["sites"]] == [248]
+
+
+def test_site_map_evidence_spells_out_what_each_class_means():
+    output = {"protein": "TP53", "mapped": 2, "sites": [
+        {"position": 248, "fold_cost": -0.2, "func_cost": -1.88, "position_is": "functional"},
+        {"position": 175, "fold_cost": -2.41, "func_cost": -0.35, "position_is": "structural"},
+    ]}  # fmt: skip
+
+    text = agent.evidence("get_site_map", output)
+
+    assert "position 248 is functional (the protein still folds but stops working)" in text
+    assert "folding cost -0.2 kcal/mol, functional cost -1.88 kcal/mol" in text
+    assert "position 175 is structural (holds the fold together)" in text
+    assert "model predictions for research, not annotations" in text
+
+
+def test_the_site_map_tool_is_declared_to_claude():
+    declared = {tool["name"] for tool in agent.TOOLS}
+
+    assert "get_site_map" in declared
+    schema = next(t for t in agent.TOOLS if t["name"] == "get_site_map")["input_schema"]
+    assert schema["required"] == ["protein"]
+    assert schema["properties"]["position_is"]["enum"] == ["structural", "functional", "mixed", "tolerant"]

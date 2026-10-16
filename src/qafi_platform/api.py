@@ -4,11 +4,15 @@
   GET /v1/proteins/{protein}                        a protein, by gene symbol (TP53) or accession (P04637)
   GET /v1/proteins/{protein}/variants/{variant}     one variant, e.g. /v1/proteins/TP53/variants/R175H
   GET /v1/proteins/{protein}/positions/{position}   the 19 substitutions at one position
+  GET /v1/proteins/{protein}/sites                  what each position is for (notebook 14e)
 
 Both scores are percentiles between 0 and 1, low = likely damaging (notebook 09a). Every answer comes from the
-Athena views ``variant_effect_current`` and ``proteins_current`` (notebook 10a): whatever release they point
-at is what the API serves. Run it here with ``uvicorn qafi_platform.api:app``; on AWS the same container
-runs in Lambda (notebook 10b). The interactive documentation is at /docs.
+Athena views ``variant_effect_current``, ``proteins_current`` and ``sites_current`` (notebooks 10a and 14e):
+whatever release they point at is what the API serves. The site map covers the proteins notebook 14e mapped,
+not the whole proteome, so a protein outside it answers 404.
+
+Run it here with ``uvicorn qafi_platform.api:app``; on AWS the same container runs in Lambda (notebook
+10b). The interactive documentation is at /docs.
 """
 
 from __future__ import annotations
@@ -20,7 +24,7 @@ import time
 from functools import lru_cache
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, HTTPException, Path, Request
+from fastapi import Depends, FastAPI, HTTPException, Path, Query, Request
 from pydantic import BaseModel, Field
 
 from qafi_platform import athena
@@ -34,6 +38,8 @@ VARIANT_COLUMNS = (
     "release, stability_head_version, function_trees_version"
 )
 PROTEIN_COLUMNS = "uniprot_id, gene_name, entry_name, protein_name, length, has_dms, release"
+SITE_COLUMNS = "position, fold_cost, func_cost, position_is"
+POSITION_KINDS = ("structural", "functional", "mixed", "tolerant")
 
 
 class Protein(BaseModel):
@@ -59,6 +65,23 @@ class Variant(BaseModel):
     release: str
     stability_head_version: str = Field(description="Version of qafi_dev.ml.stability_head in the registry")
     function_trees_version: str = Field(description="Version of qafi_dev.ml.function_trees in the registry")
+
+
+class Site(BaseModel):
+    position: int = Field(examples=[12])
+    fold_cost: float = Field(description="Mean ddG of folding over the 19 substitutions, kcal/mol")
+    func_cost: float = Field(description="Mean ddG of function over the 19 substitutions, kcal/mol")
+    position_is: str = Field(
+        description="structural (holds the fold together), functional (the protein still folds but stops "
+        "working), mixed (both) or tolerant (neither)",
+        examples=["functional"],
+    )
+
+
+class Sites(BaseModel):
+    protein: Protein
+    mapped: int = Field(description="Positions of this protein in the map")
+    sites: list[Site] = Field(description="Ordered by functional cost, most sensitive first")
 
 
 class Position(BaseModel):
@@ -92,6 +115,14 @@ class Lake:
         return self.query(
             f"SELECT {PROTEIN_COLUMNS} FROM proteins_current WHERE uniprot_id = ? OR upper(gene_name) = ?",
             [athena.literal(name), athena.literal(name)],
+        )
+
+    def sites(self, uniprot_id: str, position_is: str | None) -> list[dict]:
+        """What each position of a protein is for, most functionally sensitive first (notebook 14e)."""
+        where = "uniprot_id = ?" + (" AND position_is = ?" if position_is else "")
+        parameters = [athena.literal(uniprot_id)] + ([athena.literal(position_is)] if position_is else [])
+        return self.query(
+            f"SELECT {SITE_COLUMNS} FROM sites_current WHERE {where} ORDER BY func_cost", parameters
         )
 
     def position(self, uniprot_id: str, position: int) -> list[dict]:
@@ -186,6 +217,26 @@ def get_variant(
     if alt == ref:
         raise HTTPException(422, f"{variant} changes nothing")
     return _variant(next(row for row in rows if row["alt_aa"] == alt))
+
+
+@app.get("/v1/proteins/{protein}/sites")
+def get_sites(
+    protein: ProteinName,
+    lake: LakeDependency,
+    position_is: Annotated[str | None, Query(pattern="|".join(POSITION_KINDS))] = None,
+) -> Sites:
+    """What each position of a protein is for: structural, functional, mixed or tolerant (notebook 14e)."""
+    found = _protein(lake, protein)
+    rows = lake.sites(found["uniprot_id"], position_is)
+    if not rows:
+        label = found["gene_name"] or found["uniprot_id"]
+        kind = f" classed {position_is}" if position_is else ""
+        raise HTTPException(404, f"{label} has no mapped positions{kind}")
+    sites = [
+        Site(**{**row, "fold_cost": round(row["fold_cost"], 3), "func_cost": round(row["func_cost"], 3)})
+        for row in rows
+    ]
+    return Sites(protein=Protein(**found), mapped=len(sites), sites=sites)
 
 
 @app.get("/v1/proteins/{protein}/positions/{position}")
