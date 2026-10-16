@@ -86,6 +86,40 @@ urls = [
 ]
 
 [[dataset]]
+name = "psd95-pdz3-ddpca"
+version = "GSE184042"  # GEO series of Faure et al. 2022 (Nature 604:175); the reads are SRA PRJNA762874
+refresh = "manual"     # a finished publication
+what = "Raw MiSeq reads (2 x 250 bp) of the PSD95-PDZ3 abundance and binding selections, 12 samples, and the fitness the authors published for them: input of the reads-to-fitness pipeline and its answer key (notebook 14b)"
+urls = [
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/043/SRR15872843/SRR15872843_1.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/043/SRR15872843/SRR15872843_2.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/044/SRR15872844/SRR15872844_1.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/044/SRR15872844/SRR15872844_2.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/045/SRR15872845/SRR15872845_1.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/045/SRR15872845/SRR15872845_2.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/046/SRR15872846/SRR15872846_1.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/046/SRR15872846/SRR15872846_2.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/047/SRR15872847/SRR15872847_1.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/047/SRR15872847/SRR15872847_2.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/048/SRR15872848/SRR15872848_1.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/048/SRR15872848/SRR15872848_2.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/049/SRR15872849/SRR15872849_1.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/049/SRR15872849/SRR15872849_2.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/050/SRR15872850/SRR15872850_1.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/050/SRR15872850/SRR15872850_2.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/051/SRR15872851/SRR15872851_1.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/051/SRR15872851/SRR15872851_2.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/052/SRR15872852/SRR15872852_1.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/052/SRR15872852/SRR15872852_2.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/053/SRR15872853/SRR15872853_1.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/053/SRR15872853/SRR15872853_2.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/054/SRR15872854/SRR15872854_1.fastq.gz",
+    "https://ftp.sra.ebi.ac.uk/vol1/fastq/SRR158/054/SRR15872854/SRR15872854_2.fastq.gz",
+    "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE184nnn/GSE184042/suppl/GSE184042_fitness_PSD95-PDZ3_Abundance_supp.txt.gz",
+    "https://ftp.ncbi.nlm.nih.gov/geo/series/GSE184nnn/GSE184042/suppl/GSE184042_fitness_PSD95-PDZ3_Binding_supp.txt.gz",
+]
+
+[[dataset]]
 name = "esm2-650m"
 version = "08e4846e537177426273712802403f7ba8261b6c"  # the Hugging Face commit of facebook/esm2_t33_650M_UR50D
 refresh = "manual"  # a new model changes every language-model feature

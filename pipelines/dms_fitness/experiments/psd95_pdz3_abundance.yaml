@@ -1,0 +1,16 @@
+# PSD95-PDZ3 AbundancePCA (the paper's stabilityPCA): how much folded PSD95-PDZ3 the cell keeps.
+# Faure et al. 2022, Nature 604:175; reads GEO GSE184042 / SRA PRJNA762874 (MiSeq, 2 x 250 bp).
+# Settings copied from the authors' published DiMSum command (dimsum_JD_PDZ_NM2_*PCA_dimsum128.sh).
+name: psd95_pdz3_abundance
+samplesheet: pipelines/dms_fitness/experiments/psd95_pdz3_abundance.csv
+wildtype: CCGAGGCGAATTGTGATCCACCGGGGCTCCACGGGCCTGGGCTTCAACATCGTGGGTGGCGAGGACGGTGAAGGCATCTTCATCTCCTTTATCCTGGCCGGGGGCCCTGCAGACCTCAGTGGGGAGCTGCGGAAGGGGGACCAGATCCTGTCGGTCAACGGTGTGGACCTCCGAAATGCCAGCCATGAGCAGGCTGCCATTGCCCTGAAGAATGCGGGTCAGACGGTCACGATCATCGCTCAGTATAAACCATAA
+cutadapt5_first: GGGAGGTGGAGCTAGC
+cutadapt5_second: GCGTGACATAACTAATAAGCTT
+cutadapt_min_length: 200
+cutadapt_error_rate: 0.2
+vsearch_min_qual: 25
+vsearch_maxee: 0.25
+mutagenesis_type: codon
+# the nine designed background codons of the nicking library (position + codon)
+background_codons: "1ggt 5agg 10att 13cgt 14gtt 40gcg 46gcg 49ctg 53agg"
+fitness_min_input_count_any: "1:100,2:10,3:10,4:10,5:10,6:10"

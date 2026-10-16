@@ -1,0 +1,7 @@
+sample_name,experiment_replicate,selection_id,selection_replicate,technical_replicate,generations,cell_density,selection_time,run,fastq_1,fastq_2
+input1,1,0,,1,,0.05,,SRR15872843,SRR15872843_1.fastq.gz,SRR15872843_2.fastq.gz
+input2,2,0,,1,,0.05,,SRR15872844,SRR15872844_1.fastq.gz,SRR15872844_2.fastq.gz
+input3,3,0,,1,,0.05,,SRR15872845,SRR15872845_1.fastq.gz,SRR15872845_2.fastq.gz
+output1,1,1,1,1,5.078951341,1.69,25.67,SRR15872846,SRR15872846_1.fastq.gz,SRR15872846_2.fastq.gz
+output2,2,1,1,1,4.925999419,1.52,25.67,SRR15872847,SRR15872847_1.fastq.gz,SRR15872847_2.fastq.gz
+output3,3,1,1,1,4.733354341,1.33,25.67,SRR15872848,SRR15872848_1.fastq.gz,SRR15872848_2.fastq.gz

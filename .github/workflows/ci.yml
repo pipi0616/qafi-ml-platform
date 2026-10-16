@@ -49,6 +49,25 @@ jobs:
       - uses: astral-sh/setup-uv@v10.2.0 # full version: setup-uv publishes no floating major tags
       - run: uv run --project airflow --frozen pytest airflow/tests -q
 
+  # The reads-to-fitness pipeline (notebook 14b): static checks, then a wiring test in which every step
+  # runs its stub instead of the real tool, so no data or containers are needed.
+  nextflow:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: nf-core/setup-nextflow@v3
+        with:
+          version: 26.10.0
+      - run: nextflow lint pipelines/dms_fitness
+      - name: stub run
+        run: |
+          mkdir -p /tmp/fastq
+          cut -d, -f10,11 pipelines/dms_fitness/experiments/psd95_pdz3_abundance.csv | tail -n +2 | tr ',' '\n' \
+            | xargs -I{} touch /tmp/fastq/{}
+          nextflow run pipelines/dms_fitness -stub-run -ansi-log false \
+            -params-file pipelines/dms_fitness/experiments/psd95_pdz3_abundance.yaml \
+            --fastq_dir /tmp/fastq --outdir /tmp/results
+
   terraform:
     runs-on: ubuntu-latest
     steps:

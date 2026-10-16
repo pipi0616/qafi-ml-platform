@@ -43,3 +43,8 @@ databricks/.databricks/
 
 # Airflow: local database, logs and generated login (notebook 06)
 airflow/.airflow/
+
+# Nextflow (notebook 14b): run history, logs and task folders; results go to data/ or S3
+.nextflow/
+.nextflow.log*
+work/
