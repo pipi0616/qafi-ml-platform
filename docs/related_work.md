@@ -171,7 +171,8 @@ Deconvolving mutation effects on protein stability and function with disentangle
 | FPA（KDD 2026）+ EnzymeArt | ✅ 已读（FPA 读的是作者 camera-ready PDF，ACM 页 403） |
 | SPURS + DETANGO（含后 1/3） | ✅ 已读正文 + 补充材料 + 一个 Author Correction |
 | Cagiada 两篇 + Otwinowski 2018 | ✅ 已读（注意 arXiv 版和正式版数字不同） |
-| **新增**：Galpern 引的 [67]「功能位点抗拒稳定性优化」 | ⏳ 在找（最后一篇） |
+| **Poley-Gil**（Galpern 引的 [67]） | ✅ 已读正文 34 页 + 补充 34 页 |
+| **新增**：Poley-Gil 引的 Sumida 2024（TEV 蛋白酶） | ⏳ 在读（15c 前提最直接的出处） |
 
 **读完两篇，我原来从摘要写的结论两条全错。** 记录下来当教训。
 
@@ -761,3 +762,57 @@ ABACUS-T_prior **0.48** > MSA Transformer 0.47 > ABACUS-T 0.45 > ESM-IF1 0.42 > 
 
 **这是一个正经的、非抗体的证据，说明 ProteinMPNN 在排序突变效应上很弱。**
 我之前从抗体那篇得出同样结论是引错了来源，但结论本身在这里有更合适的出处。
+
+### (12) Poley-Gil et al. — Galpern 那条 [67]，**而且方向和我以为的相反**
+
+"Adaptive and Spandrel-like Constraints at Functional Sites in Protein Folds"，
+Poley-Gil, Fernández-Martín, Banka, Heinzinger, Rost, Valencia, Parra（巴塞罗那超算中心 + TUM），
+bioRxiv 2026-02-11，DOI 10.64898/2026.02.09.704872。
+代码 https://github.com/miriampol2c/architectural-constraints （Apache-2.0，已公开），
+结果数据 Zenodo 10.5281/zenodo.18922047，重训练权重 10.5281/zenodo.18957473。
+
+#### 它报的是**两个相反的行为**，不是一个
+
+| 体系 | ProteinMPNN 的行为 |
+|---|---|
+| **β-内酰胺酶** | **抗拒**优化掉功能位点的 frustration——K73、K234 以及非催化的 D131 在**所有采样温度、5 个重训练模型、两套参数、以及换用 Caliby**之下都被反复放回原生（且失稳）的身份 |
+| **α-珠蛋白** | **确实抹掉**功能位点特征——12 个保守且高 frustration 的位置，T=0.1 时只剩 2 个，**T=1.0 时一个不剩**，换成了降低 frustration 的残基 |
+
+**而 Galpern 引它引的是 β-内酰胺酶那一半**（原话："functional residues in the β-lactamase fold are
+known to **resist** stability optimization by IF models"）。所以我上一轮说"Galpern 指向我们 15c 的前提"
+**理解偏了**——它指的是"抗拒"，不是"毁掉"。
+
+#### 对 15c 的前提，它只证明了一半，而且不是用实测单位
+
+**证明了的**：α-珠蛋白上，两个独立的 IF 模型（ProteinMPNN 各温度 + Caliby）在无约束设计下
+**抹掉了 12 个功能位点里的 10–12 个**（PPI 位点、盐桥、AHSP 伴侣结合位点），同时把残余 frustration
+从天然的约 10% 压到 **1–4%**，而且设计的 pLDDT 很高。这是"无约束 IF 设计会抹掉功能位点特征、
+同时改善稳定性代理指标"的干净、且跨模型一致的证据。
+
+**没证明的，三条：**
+
+1. **功能从未被测量。** "毁掉功能"指的是**丢掉一个数据库/前人文献的注释**。约 25,000 条设计里
+   **没有一条做过活性、结合或热稳定实验**。作者自己说："Further studies are required to assess the
+   behavior of these designs as functional β-lactamases."
+2. **稳定性也从未被测量。** 没有 ΔΔG、没有 kcal/mol。读数是 **FrustratometeR 的局部 frustration
+   Z 分数** + pLDDT。frustration 是局部能量冲突的代理，**不是折叠自由能**。
+3. **它完全没有检验"解药"。** 没有功能代价信号、没有约束设计的自身对照，
+   **所以"需要一个功能代价信号"这半句它一个字都没证。**
+
+另外：中心观察本身**没有任何留出验证**（4 个家族、描述性分析），作者称之为 "initial evidence"。
+
+#### 它的消融做得很扎实，值得学
+
+温度扫 0.1–1.0；**把酶类（EC 3，也就是 β-内酰胺酶所属类）从训练集里删掉重训 4 个模型**（这实际上是
+一次功能类别留出，作者没这么框）；换一个目标不同的模型（Caliby）；把 frustration 最小化的突变写进
+目标主链再重设计；用实验解出的突变体结构当目标排除建模假象；两套 frustration 参数复现全部主结论。
+
+#### 一条新的线索，而且比这篇更对题
+
+它引了一篇我们没查过的：
+
+> "This is consistent with prior reports showing that **ProteinMPNN can substantially remodel functional
+> sites, often impairing activity unless key residues are explicitly fixed**, as observed for the TEV
+> protease (**Sumida et al., 2024**)."
+
+**这才是 15c 前提最直接的出处**，而且听起来有活性实测。已派去读正文，读完补进来。
