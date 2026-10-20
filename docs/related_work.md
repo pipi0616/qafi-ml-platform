@@ -124,15 +124,12 @@ Deconvolving mutation effects on protein stability and function with disentangle
 |---|---|---|---|
 | **ABACUS-T** | [Nat Commun 2025](https://www.nature.com/articles/s41467-025-65175-3) | 多模态反向折叠。重设计 xylanase 和 TEM β-内酰胺酶，**活性保持或超过野生型**，设计全部 **+10 °C 以上**热稳定性。**有湿实验** | "设计过程本身还没有主动针对催化效率的提升"。另外作者指出：只在**单一结构**上优化序列会损害蛋白采样其他构象的能力，这可能解释固定主链反向折叠设计丢活性的现象 |
 | **CatIF-RL** | [bioRxiv 2026.05.11.724288](https://www.biorxiv.org/content/10.64898/2026.05.11.724288v1.full.pdf) · [PubMed](https://pubmed.ncbi.nlm.nih.gov/42466941/) | 用 GRPO 把反向折叠导向更高预测 kcat。留出基准上预测 kcat 约 **4 倍**，序列恢复率 **0.55** | **增益是代理预测器给的，不是湿实验** |
-| **EditorForge** | [bioRxiv 2026.06.08.730993](https://www.biorxiv.org/content/10.64898/2026.06.08.730993v1) | 把反向折叠包上约束，只在 25 个位置的范围内重设计（MMLV 逆转录酶 4MH8）。审计**仍然发现活性位点附近的失败模式**，尽管固定位点的置信分看起来很高；于是加一步 "Active Site Shield" 去掉 5 个不安全位置重新生成 | 纯计算评估，没有湿实验 |
+| **EditorForge** | [bioRxiv 2026.06.08.730993](https://www.biorxiv.org/content/10.64898/2026.06.08.730993v1) | **✅ 正文已读，见 7.1。我原来写的那条是错的** | 见 7.1 |
 | **From Structure to Function** | [KDD 2026](https://dl.acm.org/doi/10.1145/3770855.3818896) · [代码](https://github.com/nilufertamatgar/Function-Aware-Protein-Inverse-Folding) | 用偏好对齐让反向折叠 function-aware | 方法细节没核实 |
-| 抗体反向折叠基准 | [bioRxiv 2025.08.05.668698](https://www.biorxiv.org/content/10.1101/2025.08.05.668698v1.full.pdf) | 以"点突变是否保住结合"评生成器。ESM-IF 前 24 条富集 **71%**；**ProteinMPNN 最差，binder 和非 binder 没有分离** | 只在抗体上 |
+| 抗体反向折叠基准 | [bioRxiv 2025.08.05.668698](https://www.biorxiv.org/content/10.1101/2025.08.05.668698v1) | **✅ 正文已读，见下面 7.1 节的更正** | 见 7.1 |
 
-**EditorForge 那条审计结果对 15c 很重要**：它说明"用独立注释把活性位点固定住"**不够**——固定位点的置信分
-高，附近照样出问题。这正是需要一个**功能代价模型**（而不只是一张注释清单）的证据。
-
-**抗体基准那条给 15a 一个预期**：ProteinMPNN 在"保住功能"这件事上可能明显不如 ESM-IF。所以 15a 的三个
-生成器同题对照有可能得出"ProteinMPNN 不如 ESM-IF"的结论——那是**真结果，不是失败**。
+> ⚠️ 这里原本有两段从摘要推出来的结论（"EditorForge 的审计证明注释清单不够"、"抗体基准预示
+> ProteinMPNN 不如 ESM-IF"）。**读完正文发现两段都是错的，已删除，更正见 7.1 节。**
 
 ## 8 · 我们的位置：三件他们都没做的事
 
@@ -159,3 +156,164 @@ Deconvolving mutation effects on protein stability and function with disentangle
 - ABACUS-T 和 CatIF-RL 的代码/权重是否公开，能不能直接当基线跑。
 - 抗体基准里 ProteinMPNN 表现差，是方法问题还是抗体这个体系特殊——会影响 15a 的解读。
 - ProteinGym 的多突变实验到底有多少可用（第 15 章查到我们手上只有 k=2，且只有 Tsuboyama 一个来源）。
+
+---
+
+## 7.1 · 正文已读（持续更新中）
+
+| 文献 | 状态 |
+|---|---|
+| 抗体反向折叠基准 | ✅ 已读完整正文（20 页） |
+| EditorForge | ✅ 已读完整正文（23 页） |
+| CatIF-RL | ✅ 已读完整正文（32 页 + 完整 SI） |
+| Galpern（folding + dark energy） | ⏳ 在读 |
+| ABACUS-T | ⏳ 在读 |
+| KDD 2026 function-aware + 酶设计 | ⏳ 在读 |
+| SPURS 的留出切分 + DETANGO 后 1/3 | ⏳ 在读 |
+| Cagiada 代码可用性 + MBE 2018 | ⏳ 在读 |
+
+**读完两篇，我原来从摘要写的结论两条全错。** 记录下来当教训。
+
+### (1) 抗体反向折叠基准 — Janusz et al.（NaturalAntibody + Boehringer-Ingelheim）
+
+[bioRxiv 2025.08.05.668698](https://doi.org/10.1101/2025.08.05.668698)，2025-08-07，未经同行评审。
+
+测四个模型：ESM-IF1、ProteinMPNN、AntiFold（ESM-IF 的抗体微调版）、AbMPNN（ProteinMPNN 的抗体微调版）。
+唯一的打分是 **perplexity**。三个数据集：
+
+| 数据集 | 规模 | 真值 |
+|---|---|---|
+| HER2-aff-large（公开） | 52 万 Trastuzumab 变体 | 三档亲和力分类 |
+| BI-PD1（内部，不公开） | **只有 118 条** | 59 个真 binder + **59 个随机打乱 CDR3 造的合成负样本** |
+| AbDesign DB（作者自己的） | 14 抗体 / 7 靶点 / 658 个单点突变 | ELISA 突变/野生型比值 |
+
+| 模型 | HER2（高 vs 低 / 中算非 binder） | BI-PD1 |
+|---|---|---|
+| **AbMPNN** | **96% / 88%** | 75%（top 12），之后迅速衰减 |
+| **AntiFold** | 93% / 75% | 75%（top 12） |
+| **ProteinMPNN** | **86% / 73%** | 最高 67%，无分离 |
+| **ESM-IF** | 最差（没给数字） | 71%（top 24）→ **再往后掉到 54%** |
+
+**我原来写错的两处：**
+
+1. 我写"ProteinMPNN 最差，binder 和非 binder 完全没分离"并当成一般规律。**实际只发生在那个 118 条、
+   负样本是合成的小数据集上**；在 52 万变体的 HER2 上 ProteinMPNN 拿 86%/73%，**反而赢 ESM-IF**。
+   作者的归因是三条情境性的：没做抗体微调、数据太小、MPNN 系的采样随机性。**全文没有任何一句**
+   说 ProteinMPNN 普遍排不好点突变，也**没有**任何能否推广到非抗体的说法（NOT STATED）。
+2. 我把 ESM-IF 的 71% 当亮点。那是同一个小数据集上的，作者原话是 "surprisingly competitive"，
+   而且紧接着 "dropping to about 54% at larger selections"。
+
+**另外四条对我们有用的：**
+
+- **ProteinMPNN 和 AbMPNN 根本没进抗原感知那组基准**："ProteinMPNN was unable to handle the antigen
+  information"。所以这篇真正的负面结论是**抗原信息几乎没被用上**，和生成器高下无关。
+- AbDesign 上的 Pearson 只有 **0.036–0.247**，而且 **single-chain 在 4 行里有 3 行赢过 multi-chain**
+  ——加了抗原反而更差，正文没有解释这个矛盾。
+- **用预测结构比晶体结构掉 5–10 个百分点**。我们平台用的是 AlphaFold 模型，这条是真约束。
+- **这篇不报序列恢复率，而且是故意的**：作者认为 AAR 就是模型的训练目标，不能拿来当评价指标。
+  我原来把"序列恢复率约 50%"当 15a 的过关标准，这个指标本身在这篇里是被否定的。
+- **oracle 自己就不可靠**：随机生成的 CDR-H3 被分类器判成 binder 的比例是 **5.6% / 38.0% / 10.6%**，
+  作者自己说 "quite extraordinary"。这对任何"用代理打分器评设计"的章节都是直接警告。
+
+**可用性**：全文**没有**代码/数据可用性声明，内部数据集不公开，**全文没有任何统计检验**（无 p 值、
+无置信区间、无重复种子）。
+
+### (2) EditorForge — Chen et al.
+
+[bioRxiv 2026.06.08.730993](https://doi.org/10.64898/2026.06.08.730993)，2026-06-11，未经同行评审。
+
+**先说来源**：作者单位是 "St. Andrew's College / SAC Scientific and Mathematical Research Collective"
+——一个**高中生研究团体**，13 位作者加一位本科生，致谢里感谢"团体的主任"。不是说高中生做的就不算，
+但引用它当证据之前必须知道这件事。
+
+**我原来写错的那处（最严重）**：我写"审计发现活性位点附近的失败模式，**尽管固定位点的置信分看起来
+很高**"。**全文不报任何置信分**。原文用的词是 "fixed-position integrity"，意思是"零违规"，
+我把它编成了"置信分很高"。这是我凭空加的。
+
+**而那个"关键发现"本身是循环的**：所谓的失败是**他们自己写的 mask 启发式**违反了**他们自己写的
+shield 规则**（25 个可设计位点里有 5 个落在他们定的 16 Å 禁区内）。**预生成那一轮的候选一个都没报**
+——没有数量、没有序列、没有指标——所以**没有任何证据表明 ProteinMPNN 的输出有问题**。
+
+**活性位点是怎么定的（我最想知道的那个问题）：手工写死三个残基 `A = {150, 224, 225}`，全文从头到尾
+没有说这三个数从哪来。** 不是数据库注释、不是配体距离（4MH8 是 apo 结构）、不是模型、没有引文。
+作者自己承认："These values define the exclusion geometry used for the MMLV RT run rather than
+universal biological constants."
+
+**其余要点：**
+
+- **单个蛋白**（MMLV 逆转录酶 4MH8，453 残基），25 个可设计位点 / 428 固定（只有 5.5% 可动）。
+- **没有任何基线，没有任何消融。** 8/8 和 24/24 的"通过率"是对着作者自己**没有公开**的阈值算出来的。
+- **论文明确没有证明那个 shield 有用**——作者把这个对照推给未来工作："a future comparison could
+  generate one candidate set using ordinary fixed-position inverse folding and another using EditorForge"。
+- 没有湿实验，作者反复声明："we do not claim that any generated candidate improves ... activity"。
+- 大量关键参数 NOT STATED：接触距离阈值、RefoldQC 的验收阈值、外围复查区半径、**到底用了哪个结构
+  预测器**、ProteinMPNN 的版本/采样温度/随机种子、24 个候选里怎么挑出 8 个去重折叠。
+
+**结论：这篇不能当证据用。** 它只能当"有人想到了同一个问题"的存在性证明。它反而说明一件事——
+**"把活性位点固定住"这件事在文献里目前就是手工画圈 + 欧氏距离**，没有人用一个学出来的功能代价模型。
+这对我们是个空位，但要等其余几篇读完才能确认。
+
+### (3) CatIF-RL — Li et al.（北京理工 + 人民大学）
+
+[bioRxiv 2026.05.11.724288](https://doi.org/10.64898/2026.05.11.724288)，2026-05-15，未经同行评审。
+正文 32 页 + 完整 SI（表 S1–S12）全部读完。代码和权重：https://github.com/lynk-101-li/CatIF-RL
+
+**我上一轮漏掉的，比我写的那条严重得多。**（我只说了"增益来自代理预测器"，方向对但远远不够。）
+
+先更正两个事实错误：
+
+1. 被导向的基模型**不是** ProteinMPNN / ESM-IF，是 **GraDe-IF**——一个图去噪离散扩散的反向折叠模型
+   （BLOSUM 转移核，500 步扩散）。ProteinMPNN / ESM-IF / LigandMPNN / ABACUS-T 在这篇里是**基线**。
+2. 序列恢复率 **0.55 不是"保持"，是掉下来的**。同一架构早一个阶段的 EnzymeIF 是 **0.7088**。
+   摘要写 "maintaining sequence recovery (0.55)"，实际是用 0.155 的恢复率、5.9 的 pLDDT、
+   1.47 Å 的 RMSD 换来的活性增益。
+
+**真正的问题：标尺就是靶子。**
+
+奖励是三个现成冻结的 kcat 预测器（DLKcat、UniKP、CataPro）的集成。而 SI §S1.6 原文承认这三个
+"used both for activity reward (manuscript §2.5) **and held-out evaluation** (manuscript §2.7)"。
+更要紧的是，**表 2 那个头条数字是 DLKcat 单独算的**——奖励成员之一。全文和 SI 里**没有任何一张表**
+报 UniKP 或 CataPro 下的基准结果。那个"留一个预测器出来评"的检查，模型都装好了，**没做**。
+
+而且这个 oracle 的精度**全文没有报过**——没有任何 R²、RMSE、Pearson 对实测 kcat。唯一的量化是
+**三个预测器之间的一致性，而且很差：Pearson r = 0.13–0.59**（25,970 组配对）。三个号称测同一个物理量
+的模型互相只有这个一致性。
+
+所谓"约 4 倍"= 10^0.6049 ≈ 4.03×，**是策略在它被训练去最大化的那个预测器上的得分**。
+
+**所有可独立验证的指标都朝反方向走：**
+
+| RL 轮次 | 奖励指标 Δlog₁₀kcat | 恢复率 | pLDDT | RMSD (Å) | 结构+功能联合通过率 |
+|---|---|---|---|---|---|
+| CatIF（RL 前） | 0.3647 | 0.5719 | 79.16 | 4.885 | 0.1145 |
+| 第 1 轮 | 0.4063 | ↓ | ↓ | ↑ | — |
+| 第 2 轮 | 0.5186 | ↓ | ↓ | ↑ | — |
+| 第 3 轮 | **0.6049** | **0.5533** | **77.87** | **5.322** | **0.1266** |
+| 对照：EnzymeIF（早三个阶段） | 0.2359 | **0.7088** | 83.74 | 3.857 | **0.1252** |
+
+**联合通过率 0.1266 vs EnzymeIF 的 0.1252——三个阶段的努力等于零。** 严格阈值下
+CatIF-RL（0.0345）和 LigandMPNN（0.0338）打平，而 LigandMPNN 还是**在不给配体输入**的条件下跑的
+（作者自己承认基线被喂得不全）。
+
+奖励单调上升、每一个可验证指标单调下降、联合通过率持平——这是**奖励攻击的典型签名**。
+作者的读法是 "guided exploration of dark sequence space"。他们准确地描述了这个现象，
+然后选了一个数据支持不了的解释。全文**只出现过一次 "reward hacking"**，是在算法注释里声称
+KL 锚定"prevents reward hacking"，没有任何证据。
+
+**切分：只到序列/蛋白簇级别，没有同源切分。** 直接继承 DLKcat 的划分；训练/验证是
+**随机打乱（seed 1234）**。全文和 SI 里 **homology / sequence identity / MMseqs / CD-HIT / BLAST
+这些词一次都没出现**，没有任何同一性阈值。唯一的聚类 `distc_pro_num` 是"同一个蛋白的不同变体"，
+它挡得住同一个蛋白两边都有，**挡不住同家族、同 fold 的近亲**。EC 类只用于事后分层报告，不用于切分。
+
+**其他要点：**
+
+- **完全不涉及稳定性**，纯活性。pLDDT 和 RMSD 是重折叠自洽性，**不是热力学稳定性**，当稳定性代理会读错。
+- 平均改掉约 **45% 的残基**（恢复率 0.553 推出）——整条序列重设计，不是点突变。
+  突变预算只有一个软惩罚，而且**前 30% 免费**。
+- **没有湿实验**，作者明说 "all reported improvements are computational"。所有结构都是 ESMFold 预测的。
+- 有一个**做得不错的阶段消融**（GraDe-IF → EnzymeIF → CatIF → CatIF-RL），带配对 Wilcoxon 和 BH 校正。
+  但**没有**奖励权重消融、**没有**单预测器 vs 集成的对照。
+
+**对我们最有用的一点**：这篇是**我们那两条防泄漏规矩的现成反面教材**——
+"标尺不能是靶子"和"切分必须到同源级别"。它还顺手给了一张 backbone-only 条件下的基线表
+（ProteinMPNN 恢复率 0.4704、ESM-IF 0.5359、ABACUS-T 0.6042），虽然基线都被喂得不全，引用时要说明。
