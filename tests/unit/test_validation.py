@@ -116,3 +116,25 @@ def test_a_random_split_flatters_a_model_that_memorises_positions():
     scores = v.compare_splits(pd.DataFrame(rows), ["position_code", "noise"], "label", "protein")
     random, held_out = scores["median Spearman"]
     assert random > held_out + 0.3
+
+
+def test_the_gap_between_two_predictors_is_bootstrapped_by_group():
+    rng = np.random.default_rng(0)
+    positions = np.repeat(np.arange(60), 10)
+    effect = rng.normal(size=60)[positions]  # rows of one position share their effect
+    df = pd.DataFrame(
+        {
+            "position": positions,
+            "measured": effect + rng.normal(0, 0.5, len(positions)),
+            "right": effect + rng.normal(0, 0.5, len(positions)),
+            "wrong": rng.normal(size=len(positions)),
+        }
+    )
+    by_row = v.bootstrap_gap(df, "measured", "right", "wrong", n=200)
+    by_position = v.bootstrap_gap(df, "measured", "right", "wrong", group="position", n=200)
+    assert by_row["gap"] == pytest.approx(by_position["gap"])
+    assert by_row["wins"] == 1.0 and by_position["wins"] == 1.0
+    # resampling whole positions sees fewer independent units, so its interval is wider
+    assert by_position["high"] - by_position["low"] > by_row["high"] - by_row["low"]
+    useless = v.bootstrap_gap(df.assign(right=rng.normal(size=len(df))), "measured", "right", "wrong", n=200)
+    assert 0.05 < useless["wins"] < 0.95

@@ -1,4 +1,4 @@
-"""Can a small molecule rescue the variant? (notebook 14f)
+"""Can a small molecule rescue the variant? (notebook 14e)
 
 Some mutations do not break what a protein does, they stop it from folding; the cell then destroys it
 before it ever reaches the place it works. A **pharmacological chaperone** is a small molecule that binds

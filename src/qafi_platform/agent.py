@@ -55,7 +55,7 @@ TOOLS = [
     {
         "name": "get_site_map",
         "description": (
-            "What each position of a protein is for, from the two predicted free energies (notebook 14e): "
+            "What each position of a protein is for, from the two predicted free energies (notebook 14d): "
             "structural (the residue holds the fold together), functional (the protein still folds but "
             "stops working - an active site, a ligand pocket, an interface), mixed (both) or tolerant "
             "(neither). Costs are in kcal/mol, more negative = more damaging. Only the proteins already "

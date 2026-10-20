@@ -26,6 +26,7 @@ def landscape(n_positions=20, seed=0):
     signal = embeddings[df.row.values, 0] * 2 + df.weight
     df["label"] = signal + 0.2 * df.noise
     df["predicted"] = signal + 2.0 * df.noise  # a weak zero-shot prediction of the same thing
+    df["ours"] = signal + 0.7 * df.noise  # a better prior, as a trained model is meant to be
     return df.reset_index(drop=True), embeddings
 
 
@@ -61,6 +62,26 @@ def test_more_measurements_rank_the_rest_better():
     for model in ("one-hot + ridge", "ESM-2 + ridge", "ESM-2 + zero-shot + ridge"):
         assert median.loc[model, 96] > median.loc[model, 24]
     assert median.loc["ESM-2 + zero-shot + ridge", 96] > median.loc["zero-shot", 96]
+
+
+def test_a_better_prior_lifts_both_the_flat_line_and_the_fitted_model():
+    df, embeddings = landscape()
+    priors = {"zero-shot": "predicted", "ours": "ours"}
+
+    out = lown.curve(df, embeddings, budgets=(24,), draws=5, priors=priors)
+
+    median = out.groupby("model").spearman.median()
+    # each prior appears twice: unfitted, and as a feature of the augmented ridge
+    assert set(median.index) == {
+        "zero-shot",
+        "ours",
+        "one-hot + ridge",
+        "ESM-2 + ridge",
+        "ESM-2 + zero-shot + ridge",
+        "ESM-2 + ours + ridge",
+    }
+    assert median["ours"] > median["zero-shot"]
+    assert median["ESM-2 + ours + ridge"] > median["ESM-2 + zero-shot + ridge"]
 
 
 def test_a_campaign_finds_more_of_the_best_variants_than_picking_at_random():

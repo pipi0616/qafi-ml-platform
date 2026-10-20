@@ -1,4 +1,4 @@
-"""Working from a handful of measurements (notebook 14d): few-shot fitting and active learning.
+"""Working from a handful of measurements (notebook 14x): few-shot fitting and active learning.
 
 Chapters 07-09 train on hundreds of proteins and predict a new one with no measurements at all. A protein
 engineering project is the other way round: one protein, a budget of a few dozen or a few hundred variants
@@ -11,7 +11,12 @@ the best variants have been found.
 
 The models compared are the standard few-shot baselines (Hsu et al. 2022): a ridge regression on the
 one-hot encoding of the substitution, the same on the ESM-2 residue vector, and the "augmented" version
-that adds the zero-shot prediction as one more feature.
+that adds a prediction made without any measurement as one more feature.
+
+That prediction -- the **prior** -- is what this project's own released model competes for. Both functions
+take a mapping of named priors to columns, so one run compares starting from the free ESM-2 zero-shot
+score against starting from the score chapter 09 released: the prior is the line a fitted model has to
+beat, and it is also a feature the fitted model gets to use.
 """
 
 from __future__ import annotations
@@ -21,6 +26,7 @@ import pandas as pd
 from scipy import stats
 
 AMINO_ACIDS = "ACDEFGHIKLMNPQRSTVWY"
+DEFAULT_PRIORS = {"zero-shot": "predicted"}
 
 
 def one_hot(df: pd.DataFrame, positions: list[int]) -> np.ndarray:
@@ -34,14 +40,14 @@ def one_hot(df: pd.DataFrame, positions: list[int]) -> np.ndarray:
     return out
 
 
-def features(df: pd.DataFrame, embeddings, positions: list[int], kind: str, zero_shot: str) -> np.ndarray:
-    """The inputs of one of the three baselines: one-hot, the ESM-2 vector, or the vector plus the score."""
+def features(df: pd.DataFrame, embeddings, positions: list[int], kind: str, prior: str) -> np.ndarray:
+    """The inputs of one of the three baselines: one-hot, the ESM-2 vector, or the vector plus a prior."""
     if kind == "one_hot":
         return one_hot(df, positions)
     vectors = embeddings[df.row.values].astype(np.float32)
     if kind == "embedding":
         return vectors
-    return np.hstack([vectors, df[[zero_shot]].to_numpy(dtype=np.float32)])
+    return np.hstack([vectors, df[[prior]].to_numpy(dtype=np.float32)])
 
 
 def fit_ridge(x: np.ndarray, y: np.ndarray, alpha: float = 1.0):
@@ -57,15 +63,18 @@ def curve(
     embeddings,
     budgets=(24, 48, 96, 384),
     draws: int = 10,
-    zero_shot: str = "predicted",
+    priors: dict[str, str] | None = None,
     label: str = "label",
     seed: int = 0,
 ) -> pd.DataFrame:
     """How well each model ranks the variants it has not seen, after n of them were measured.
 
     One row per (budget, draw, model). ``df`` is one assay of one protein, with a ``row`` column pointing
-    into ``embeddings`` and a zero-shot prediction already in it.
+    into ``embeddings`` and every prior's column already in it. Each prior contributes two models: itself,
+    unfitted (a flat line -- it never sees the measurements), and the augmented ridge that reads it as an
+    extra feature. The one-hot and plain-embedding ridges do not depend on a prior and are fitted once.
     """
+    priors = priors or DEFAULT_PRIORS
     rng = np.random.default_rng(seed)
     positions = sorted(df.position.unique())
     rows = []
@@ -75,18 +84,18 @@ def curve(
         for draw in range(draws):
             measured = df.iloc[rng.choice(len(df), budget, replace=False)]
             rest = df.drop(measured.index)
-            scores = {"zero-shot": stats.spearmanr(rest[label], rest[zero_shot]).statistic}
-            for kind in ("one_hot", "embedding", "embedding + zero-shot"):
-                name = {
-                    "one_hot": "one-hot + ridge",
-                    "embedding": "ESM-2 + ridge",
-                    "embedding + zero-shot": "ESM-2 + zero-shot + ridge",
-                }[kind]
-                key = "augmented" if kind == "embedding + zero-shot" else kind
-                x = features(measured, embeddings, positions, key, zero_shot)
-                predict = fit_ridge(x, measured[label].to_numpy(dtype=np.float32))
-                guess = predict(features(rest, embeddings, positions, key, zero_shot))
-                scores[name] = stats.spearmanr(rest[label], guess).statistic
+            y = measured[label].to_numpy(dtype=np.float32)
+            scores = {
+                name: stats.spearmanr(rest[label], rest[column]).statistic for name, column in priors.items()
+            }
+            fits = {"one-hot + ridge": "one_hot", "ESM-2 + ridge": "embedding"}
+            fits |= {f"ESM-2 + {name} + ridge": name for name in priors}
+            for model, kind in fits.items():
+                column = priors.get(kind, "")  # the prior-free encodings ignore it
+                key = kind if kind in ("one_hot", "embedding") else "augmented"
+                predict = fit_ridge(features(measured, embeddings, positions, key, column), y)
+                guess = predict(features(rest, embeddings, positions, key, column))
+                scores[model] = stats.spearmanr(rest[label], guess).statistic
             rows.extend(
                 {"budget": budget, "draw": draw, "model": k, "spearman": v} for k, v in scores.items()
             )
@@ -99,15 +108,15 @@ def campaign(
     batch: int = 96,
     rounds: int = 4,
     strategy: str = "greedy",
-    zero_shot: str = "predicted",
+    prior: str = "predicted",
     label: str = "label",
     seed: int = 0,
 ) -> pd.DataFrame:
     """One design loop: measure a batch, refit, choose the next batch, repeat.
 
-    ``strategy`` picks the next batch: ``random`` ignores the model, ``greedy`` takes the best predicted,
-    ``ucb`` adds the spread of an ensemble of ridge fits to favour variants the model is unsure about.
-    The first batch is always random, because nothing is fitted yet.
+    ``strategy`` picks the next batch: ``random`` ignores the model (and the prior), ``greedy`` takes the
+    best predicted, ``ucb`` adds the spread of an ensemble of ridge fits to favour variants the model is
+    unsure about. The first batch is always random, because nothing is fitted yet.
 
     Returns one row per round with the best label measured so far, as a share of the best in the whole
     landscape: the number a project actually cares about.
@@ -134,9 +143,9 @@ def campaign(
         if strategy == "random":
             chosen = rng.choice(len(rest), batch, replace=False)
         else:
-            x = features(measured, embeddings, positions, "augmented", zero_shot)
+            x = features(measured, embeddings, positions, "augmented", prior)
             y = measured[label].to_numpy(dtype=np.float32)
-            new = features(rest, embeddings, positions, "augmented", zero_shot)
+            new = features(rest, embeddings, positions, "augmented", prior)
             guesses = np.array([fit_ridge(x, y, alpha)(new) for alpha in (0.3, 1.0, 3.0)])
             score = guesses.mean(0) + (guesses.std(0) if strategy == "ucb" else 0)
             chosen = np.argsort(-score)[:batch]

@@ -4,11 +4,11 @@
   GET /v1/proteins/{protein}                        a protein, by gene symbol (TP53) or accession (P04637)
   GET /v1/proteins/{protein}/variants/{variant}     one variant, e.g. /v1/proteins/TP53/variants/R175H
   GET /v1/proteins/{protein}/positions/{position}   the 19 substitutions at one position
-  GET /v1/proteins/{protein}/sites                  what each position is for (notebook 14e)
+  GET /v1/proteins/{protein}/sites                  what each position is for (notebook 14d)
 
 Both scores are percentiles between 0 and 1, low = likely damaging (notebook 09a). Every answer comes from the
-Athena views ``variant_effect_current``, ``proteins_current`` and ``sites_current`` (notebooks 10a and 14e):
-whatever release they point at is what the API serves. The site map covers the proteins notebook 14e mapped,
+Athena views ``variant_effect_current``, ``proteins_current`` and ``sites_current`` (notebooks 10a and 14d):
+whatever release they point at is what the API serves. The site map covers the proteins notebook 14d mapped,
 not the whole proteome, so a protein outside it answers 404.
 
 Run it here with ``uvicorn qafi_platform.api:app``; on AWS the same container runs in Lambda (notebook
@@ -118,7 +118,7 @@ class Lake:
         )
 
     def sites(self, uniprot_id: str, position_is: str | None) -> list[dict]:
-        """What each position of a protein is for, most functionally sensitive first (notebook 14e)."""
+        """What each position of a protein is for, most functionally sensitive first (notebook 14d)."""
         where = "uniprot_id = ?" + (" AND position_is = ?" if position_is else "")
         parameters = [athena.literal(uniprot_id)] + ([athena.literal(position_is)] if position_is else [])
         return self.query(
@@ -225,7 +225,7 @@ def get_sites(
     lake: LakeDependency,
     position_is: Annotated[str | None, Query(pattern="|".join(POSITION_KINDS))] = None,
 ) -> Sites:
-    """What each position of a protein is for: structural, functional, mixed or tolerant (notebook 14e)."""
+    """What each position of a protein is for: structural, functional, mixed or tolerant (notebook 14d)."""
     found = _protein(lake, protein)
     rows = lake.sites(found["uniprot_id"], position_is)
     if not rows:

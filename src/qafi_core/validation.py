@@ -232,3 +232,43 @@ def compare_splits(
             "median Spearman": scores["spearman"].median(),
         }
     return pd.DataFrame(results).T.round(3)
+
+
+def bootstrap_gap(
+    df: pd.DataFrame,
+    measured: str,
+    right: str,
+    wrong: str,
+    group: str | None = None,
+    n: int = 2000,
+    seed: int = 0,
+) -> dict:
+    """Does ``measured`` follow ``right`` more closely than ``wrong``? Spearman gap with a bootstrap.
+
+    The gap is rho(measured, right) - rho(measured, wrong); both columns must be oriented the same way.
+    Without ``group`` the rows are resampled; with ``group`` (e.g. the position) whole groups are, which is
+    the honest choice when rows of one group are not independent: the 19 substitutions at one position
+    share most of their effect. Returns the gap, the share of resamples in which it stays above zero, the
+    one-sided p-value and a 95% interval.
+    """
+    rng = np.random.default_rng(seed)
+    rho = lambda t: stats.spearmanr(t[measured], t[right])[0] - stats.spearmanr(t[measured], t[wrong])[0]  # noqa: E731
+    if group is None:
+        draws = (rng.integers(0, len(df), len(df)) for _ in range(n))
+    else:
+        members = [
+            np.asarray(i) for i in df.reset_index(drop=True).groupby(df[group].to_numpy()).indices.values()
+        ]
+        draws = (
+            np.concatenate([members[i] for i in rng.integers(0, len(members), len(members))])
+            for _ in range(n)
+        )
+    table = df.reset_index(drop=True)
+    gaps = np.array([rho(table.iloc[d]) for d in draws])
+    return {
+        "gap": float(rho(table)),
+        "wins": float((gaps > 0).mean()),
+        "p": float((1 + (gaps <= 0).sum()) / (1 + n)),
+        "low": float(np.percentile(gaps, 2.5)),
+        "high": float(np.percentile(gaps, 97.5)),
+    }

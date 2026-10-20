@@ -83,3 +83,65 @@ def test_a_pocket_the_model_was_not_told_about_can_be_ranked():
     assert out["p"] < 0.1
     with pytest.raises(ValueError, match="none of the pocket positions"):
         sites.pocket_rank(positions, "P1", pocket=[999])
+
+
+def test_measured_and_predicted_maps_use_the_same_rule():
+    fold = np.array([-3.0, -2.5, 0.0, 0.1, 0.2, 0.3, 0.4, 0.5])
+    func = np.array([-3.0, 0.0, -2.5, 0.1, 0.2, 0.3, 0.4, 0.5])
+    labels = sites.position_classes(fold, func)
+    assert list(labels[:3]) == [sites.MIXED, sites.STRUCTURAL, sites.FUNCTIONAL]
+    assert set(labels[3:]) == {sites.TOLERANT}
+
+
+def test_agreement_is_one_for_a_perfect_map_and_near_chance_for_a_shuffled_one():
+    rng = np.random.default_rng(0)
+    measured = rng.choice(
+        [sites.STRUCTURAL, sites.FUNCTIONAL, sites.MIXED, sites.TOLERANT], 400, p=[0.15, 0.15, 0.1, 0.6]
+    )
+    perfect = sites.agreement(measured, measured, permutations=200)
+    assert perfect["kappa"] == pytest.approx(1.0)
+    assert perfect["p"] < 0.01
+    assert all(found == pytest.approx(1.0) for found, _ in perfect["recall"].values())
+    shuffled = sites.agreement(measured, rng.permutation(measured), permutations=200)
+    assert abs(shuffled["kappa"]) < 0.1
+    assert shuffled["p"] > 0.05
+
+
+def test_what_abundance_explains_is_taken_out_of_activity():
+    rng = np.random.default_rng(0)
+    abundance = rng.uniform(0, 1, 500)
+    function = rng.normal(0, 0.1, 500)
+    activity = abundance**2 + function  # activity follows abundance, bent, plus a part of its own
+    left = sites.beyond_abundance(abundance, activity)
+    assert abs(np.corrcoef(left, abundance)[0, 1]) < 0.1
+    assert np.corrcoef(left, function)[0, 1] > 0.8
+
+
+def test_a_chain_is_numbered_along_the_full_protein():
+    protein = "MKTAYIAKQRQISFVKSHFSRQ"
+    assert sites.receptor_numbering("AYIAK", protein) == {1: 4, 2: 5, 3: 6, 4: 7, 5: 8}
+    # an engineered mutation (I -> V) is aligned through, but the changed position is not mapped
+    shifted = sites.receptor_numbering("TAYVAKQRQISF", protein)
+    assert shifted[1] == 3 and shifted[12] == 14
+    assert 4 not in shifted
+
+
+def test_biolip_lines_become_protein_positions_and_the_best_structure_is_the_pocket():
+    sequences = {"P1": "MKTAYIAKQRQISFVKSHFSRQ"}
+    table = pd.DataFrame(
+        {
+            1: ["1abc", "2xyz", "3zzz"],
+            3: [2.5, 1.8, 2.0],
+            5: ["DRG", "DRG", "ZN"],
+            9: ["Y2 I3", "A1 Y2", "K5"],
+            18: ["P1", "P1", "P1"],
+            21: ["AYIAK", "AYIAK", "AYIAK"],
+        }
+    )
+    found = sites.biolip_sites(table, sequences)
+    assert sorted(found[found.pdb == "1abc"].position) == [5, 6]
+    assert found[found.ligand == "ZN"].metal.all() and not found[found.ligand == "DRG"].metal.any()
+    pdb, pocket = sites.drug_pocket(found, "P1", {"DRG"})
+    assert pdb == "2xyz" and pocket == [4, 5]
+    with pytest.raises(ValueError):
+        sites.drug_pocket(found, "P1", {"NOPE"})
