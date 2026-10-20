@@ -2,7 +2,7 @@
 
 The claims themselves, with their evidence, are in [`contributions.md`](contributions.md); this page is how to say them out loud.
 The Chinese walkthrough of the claims, with worked examples and the order to say them in, is notebook
-[`14g`](../notebooks/F_science/14g_contributions_and_pitch.ipynb).
+[`14f`](../notebooks/F_science/14f_contributions_and_pitch.ipynb).
 
 Three audiences ask for different things from the same work. Each section below has a 30-second answer, a
 2-minute answer, the questions that follow, and CV lines.
@@ -42,8 +42,10 @@ decomposition is only identifiable for proteins measured **both** ways; there ar
 set, and fitting the readout on just those nine is what made it work.
 
 Then the held-out test on KRAS, the additivity result on double mutants, and finally the practical
-chapter: how many measurements a new project needs before fitting beats the free zero-shot score (about
-one 96-well plate), and how much a guided design loop beats random picking (7 of the top 1% against 4).
+chapter: what the released model is worth to a project that has measured nothing. It replaces the free
+zero-shot score as the starting line, and the standard few-shot pipeline needs about 300 measured
+variants to catch up with it — three 96-well plates. A guided design loop then beats random picking by
+7 of the top 1% against 4.
 
 ### Questions that follow
 
@@ -52,13 +54,14 @@ one 96-well plate), and how much a guided design loop beats random picking (7 of
 | "How do you know the test set is clean?" | Proteins held out whole with their relatives, grouped by local alignment; the split is a dbt seed, opened once. Each new dataset is re-checked against it — 14a found 56 mega-scale domains homologous to locked test proteins and trained a decontaminated model, costing 0.010 Spearman. |
 | "Do you beat the state of the art?" | On stability, no: median per-domain Spearman 0.76 against SPURS' 0.83 and ThermoMPNN's 0.77, with a generic architecture. On binding accuracy, no: 0.31 against ESM-2's 0.36, and AlphaMissense is better still at 0.38. What we have that they do not is two numbers that each track their own measurement — on the same KRAS data ESM-2 gives 0.366 for folding and 0.362 for binding, the same answer to both questions, while our two energies lean 0.23 apart in opposite directions. Full comparison in `docs/why_not_just_use_alphamissense.md`. |
 | "Why not just fine-tune ESM?" | Did that in 08c: LoRA on a small ESM-2 gained +0.014 on stability and **lost** 0.014 on function, and a fine-tuned small model stayed behind a frozen 650M one. The bottleneck was functional training data, not model capacity. |
-| "Would this work on my target?" | 14d answers it with a number: below ~50 measured variants the zero-shot score is better than anything fitted; from ~96 upward measuring pays. For a protein with no data at all, 14c's KRAS result is the honest expectation. |
+| "Would this work on my target?" | 14x answers it with a number. On 128 held-out assays the released score ranks variants at 0.58 Spearman before a single measurement, and the standard few-shot pipeline needs ~288 measured variants to match that — so on a protein nobody has measured the model is worth about three 96-well plates. Below ~50 measurements, fitting anything on them is worse than using a free score. For absolute accuracy expectations, 14c's KRAS result is the honest one. |
+| "Where does the model stop paying?" | Also 14x, and it is the uncomfortable half. Once a design loop is running at 96 variants per round, swapping the public zero-shot prior for ours adds only 0.2 top-1% variants (p = 1e-4) against a 0.156 Spearman gap when nothing is measured. The data outweighs the prior after the first plate — the value is front-loaded, and I would not sell it as a per-round gain. |
 
 ### CV lines
 
 - Built a protein stability and function model predicting two free energies (kcal/mol) with a
   thermodynamic readout; on a fully held-out protein each energy tracks its own measured quantity across
-  seven experimental free energies (bootstrap 100%), and energies add to predict ~5,000 double mutants at
+  seven experimental free energies (6 of 7 significant by a position-level bootstrap), and energies add to predict ~5,000 double mutants at
   R² 0.74–0.84.
 - Quantified the measurement budget at which supervised fitting overtakes a zero-shot protein language
   model (~96 variants) and built an active-learning loop finding 75% more top-1% variants than random

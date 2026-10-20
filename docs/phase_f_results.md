@@ -52,7 +52,11 @@ binding free energies Weng et al. 2024 inferred in kcal/mol.
 | Folding ΔΔG | **0.369** | 0.245 | 0.366 |
 | Binding, median of six partners | 0.202 | **0.312** | 0.362 |
 
-The right energy wins all seven comparisons in 1000 of 1000 bootstrap resamples. A single ESM-2 score
+The right energy wins all seven comparisons. Resampling whole positions rather than mutations (the 19
+substitutions at a position are not independent), six of the seven stay significant (p ≤ 0.016) and
+DARPin K27 does not (p = 0.06). Two more held-out proteins measured both ways: abundance follows the
+folding energy in both CYP2C9 and G6PD (100% of position resamples); activity beyond what abundance
+explains follows the functional energy in G6PD (100%) but not in CYP2C9 (72%). A single ESM-2 score
 gives essentially the same answer for folding and for binding; two energies tell them apart. We do not
 beat ESM-2 on absolute binding accuracy.
 
@@ -65,30 +69,7 @@ doubles are then predicted with nothing fitted to them:
 | Fitness adds | −0.041 | −0.127 |
 | Worse of the two | 0.675 | 0.711 |
 
-## 14d · How many measurements are worth it
-
-128 assays of 92 locked test proteins treated as new projects. Median Spearman on the variants not
-measured:
-
-| Measured variants | 24 | 48 | 96 | 384 |
-|---|---|---|---|---|
-| **Zero-shot (measure nothing)** | **0.420** | **0.420** | 0.419 | 0.421 |
-| One-hot + ridge | 0.175 | 0.272 | 0.396 | 0.579 |
-| ESM-2 + ridge | 0.323 | 0.388 | 0.448 | 0.558 |
-| ESM-2 + zero-shot + ridge | 0.347 | 0.414 | **0.479** | **0.595** |
-
-Below about 50 measurements the free zero-shot score ranks better than anything fitted on them; one
-96-well plate is where measuring starts to pay. One-hot encoding needs roughly four times as many.
-
-**Design loop**, 96 per round, four rounds, median over assays:
-
-| | Best variant found | Top 1% found |
-|---|---|---|
-| Random | 0.960 | 4 |
-| Greedy | 0.998 | 6 |
-| **Upper confidence bound** | **0.999** | **7** |
-
-## 14e · What each position is for
+## 14d · What each position is for
 
 The two energies averaged over a position's 19 substitutions: structural, functional, both or tolerant.
 118 proteins, 103,744 positions, 1.97M substitutions.
@@ -114,11 +95,24 @@ functional cost (0 = most sensitive):
 SHP2's tunnel is a conformational switch at a three-domain junction, which a folded-and-functional model
 does not represent — a real boundary of the method.
 
+**More checks, all on proteins the model never saw:**
+
+| Check | Truth | Result |
+|---|---|---|
+| Four classes against measured ones | KRAS energies; CYP2C9 and G6PD abundance + activity beyond abundance | agreement 59% / 55% / 65% vs chance 42% / 40% / 38%, kappa 0.29 / 0.24 / 0.43, p < 1e-4 |
+| Folding axis | abundance assays of 102 test proteins | abundance tracks the folding cost better than the functional cost in 75 of 102 proteins (p 1e-6); functional positions lose far less protein than structural ones (p 5e-30) |
+| Functional axis | BioLiP ligand, peptide and nucleic-acid contacts (1,582 residues, 5x UniProt) | functional positions enriched 4.5x, structural 0.65x, tolerant 0.23x; same direction in 42 of 44 proteins (p 6e-11) |
+| Drug pockets | BioLiP co-crystals of 21 approved drugs (28 listed in advance) | active-site pockets significant in 15 of 16, allosteric in 2 of 5 (4 of 8 with the three above); the functional cost ranks the pocket ahead of ESM-2 in 19 of 21 (p 1e-4) |
+
+The classes are good for prioritising positions, not a verdict on each one: per class they recover two to
+four in ten measured positions. Allosteric pockets at subunit interfaces (IDH1, IDH2) and in the membrane
+(CFTR) join SHP2 as the method's blind spot.
+
 The map is served: 103,744 rows in the S3 lake behind a Glue table and a `sites_current` view, a
 `/v1/proteins/{protein}/sites` route on the API, and a `get_site_map` tool for the agent. KRAS's three
 oncogenic hotspots G12, G13 and Q61 rank 11th, 26th and 44th of its 189 positions by functional cost.
 
-## 14f · Which variants a pharmacological chaperone rescues
+## 14e · Which variants a pharmacological chaperone rescues
 
 Migalastat is approved for Fabry disease; its makers published which GLA variants respond in their cell
 assay and which do not. 555 labelled substitutions (254 rescued), GLA absent from every split and
@@ -140,10 +134,58 @@ unrelated to any training protein, cross-validation grouped by position.
 The direction on the folding energy was the opposite of the prior: the drug binds the active site, so it
 rescues mildly destabilised variants whose machinery is intact, not severely broken ones.
 
+## Appendix 14x · How many measurements are worth it
+
+Not on the main line: this chapter does not use the two energies. It asks a deployment question —
+what the released model is worth to a lab that can only measure a few dozen variants.
+
+128 assays of 92 locked test proteins treated as new projects, scored by the model 09b registered as
+`@champion`. A few-shot model has to beat the prediction the project already has for free, so every table
+is run twice: starting from the public ESM-2 zero-shot score, and starting from ours. Median Spearman on
+the variants not measured:
+
+| Measured variants | 24 | 48 | 96 | 192 | 288 | 384 |
+|---|---|---|---|---|---|---|
+| ESM-2 zero-shot (measure nothing) | 0.420 | 0.420 | 0.419 | 0.422 | 0.419 | 0.419 |
+| **Our stability score** (measure nothing) | **0.588** | **0.588** | **0.588** | 0.589 | 0.588 | 0.587 |
+| **Our function score** (measure nothing) | **0.576** | **0.576** | **0.576** | 0.577 | 0.576 | 0.577 |
+| One-hot + ridge | 0.175 | 0.272 | 0.396 | 0.506 | 0.555 | 0.580 |
+| ESM-2 + ridge | 0.323 | 0.388 | 0.448 | 0.512 | 0.542 | 0.559 |
+| ESM-2 + zero-shot + ridge | 0.347 | 0.414 | 0.479 | 0.547 | 0.580 | 0.597 |
+| ESM-2 + our stability score + ridge | 0.361 | 0.427 | 0.493 | 0.561 | 0.595 | 0.612 |
+| **ESM-2 + our function score + ridge** | **0.361** | **0.429** | **0.495** | **0.564** | **0.597** | **0.614** |
+
+Our function score beats the zero-shot one as a free starting line in 97% of assays (mean +0.156,
+p = 2e-22); the stability score in 92% (+0.168). Both are reported because neither is picked per assay
+type — choosing by assay kind would be choosing with knowledge of the answer.
+
+**The released score is worth about 300 measurements.** The standard pipeline has to measure 288 variants
+to reach 0.580, which is where our score starts for free. Accordingly the crossover moves: fitting beats
+the zero-shot start after a median of 48 measured variants, but beats our score only after a median of
+288, and in 37% of assays 384 measurements still do not beat it. As a ridge feature the same score adds
+only 0.014–0.017 at every budget — almost all of its value is in the starting point, not the fitting.
+
+**Design loop**, 96 per round, four rounds, 3 seeds, median over assays (mean in brackets):
+
+| | Best variant found | Top 1% found |
+|---|---|---|
+| Random | 0.960 | 4 (6.40) |
+| Greedy, from zero-shot | 0.998 | 6 (9.25) |
+| UCB, from zero-shot | 0.999 | 7 (9.30) |
+| **UCB, from our score** | **1.000** | **7 (9.51)** |
+
+Paired per assay: guided picking finds +3.11 more of the top 1% than random (91% of assays, p = 3e-20),
+but our prior beats the zero-shot prior by only +0.21 variants (p = 1e-4), and UCB does not beat greedy
+(p = 0.65). Once the first 96 real measurements are in, the data outweighs the prior: **the model's value
+is front-loaded**, which is visible only because our own model was compared against the public one.
+
+These proteins were already opened once in 09a, so this is a second question asked of the same exam —
+the numbers are estimates, not a fresh test.
+
 ## What is not claimed
 
 - Absolute accuracy is not state of the art: 14a is behind SPURS, and 14c does not beat a single ESM-2
   score on binding. What the two energies add is **which kind of damage**, not a higher score.
-- Nothing here is a clinical tool. 14f's labels are an in-vitro cell assay used as an ML benchmark.
+- Nothing here is a clinical tool. 14e's labels are an in-vitro cell assay used as an ML benchmark.
 - The decomposition needs proteins measured both ways; there are nine in this training set, which is the
   main thing limiting it.

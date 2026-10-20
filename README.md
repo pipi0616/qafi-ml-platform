@@ -20,11 +20,11 @@ challenges) from research scripts into that system.
 |---|---|---|
 | **Predict folding stability in kcal/mol** | Median Spearman 0.76 per domain on the published mega-scale split, against ThermoMPNN's 0.77 and SPURS' 0.83; beats a zero-parameter conservation × burial baseline (0.58) | [14a](notebooks/F_science/14a_stability_kcal.ipynb) |
 | **Turn sequencing reads into fitness** | Reprocessed a published experiment from raw FASTQ: **Pearson 1.0000** against the authors' deposited values, on both phenotypes | [14b](notebooks/F_science/14b_reads_to_fitness.ipynb) |
-| **Separate stability from function** | On KRAS, held out with its only relative: the folding energy tracks measured folding, the functional energy tracks binding to all six partners — **7 of 7**, bootstrap 100%. One ESM-2 score gives the same answer for both | [14c](notebooks/F_science/14c_two_energies.ipynb) |
+| **Separate stability from function** | On KRAS, held out with its only relative: the folding energy tracks measured folding, the functional energy tracks binding to all six partners — **7 of 7** in direction, 6 significant when whole positions are resampled; two more held-out proteins (CYP2C9, G6PD) agree on the folding side. One ESM-2 score gives the same answer for both | [14c](notebooks/F_science/14c_two_energies.ipynb) |
 | **Predict combinations** | Energies add: ~5,000 held-out double mutants at **R² 0.74 and 0.84**; adding fitness instead gives a negative R² | [14c](notebooks/F_science/14c_two_energies.ipynb) |
-| **Say when measuring is worth it** | Below ~50 measured variants the free zero-shot score wins; one 96-well plate is the crossover. A guided design loop finds **7 of the top 1%** against 4 for random picking | [14d](notebooks/F_science/14d_low_n_and_design.ipynb) |
-| **Map what each position is for** | Positions called functionally costly are enriched **2.8×** for UniProt active and binding sites (structural ones are depleted). The KRAS switch-II and ABL1 myristoyl pockets, which marketed drugs bind, land in the top quarter of their own protein. Served through the API and the agent | [14e](notebooks/F_science/14e_site_map.ipynb) |
-| **Tell which variants a drug can rescue** | Migalastat's published amenability list for GLA: **AUROC 0.769** against 0.725 for a zero-shot language model, on a protein absent from every split | [14f](notebooks/F_science/14f_chaperone_rescue.ipynb) |
+| **Map what each position is for** | Positions called functionally costly are enriched **2.8×** for UniProt active and binding sites (structural ones are depleted). The KRAS switch-II and ABL1 myristoyl pockets, which marketed drugs bind, land in the top quarter of their own protein. Served through the API and the agent | [14d](notebooks/F_science/14d_site_map.ipynb) |
+| **Tell which variants a drug can rescue** | Migalastat's published amenability list for GLA: **AUROC 0.769** against 0.725 for a zero-shot language model, on a protein absent from every split | [14e](notebooks/F_science/14e_chaperone_rescue.ipynb) |
+| **Say what the model is worth before any measurement** | On 128 held-out assays it ranks variants at **0.58 Spearman** with nothing measured, against 0.42 for a free zero-shot model (better in 97% of them). The standard few-shot pipeline needs ~288 measured variants to match that — three 96-well plates. A guided design loop then finds **7 of the top 1%** against 4 for random picking | [14x](notebooks/F_science/14x_low_n_and_design.ipynb) |
 | **Score the proteome and serve it** | 217,670,004 missense variants of 20,652 human proteins; a lookup scans 6.5 MB of a 2.6 GB table, ~0.15 s per request warm | [09c](notebooks/C_ml/09c_proteome_scoring.ipynb), [10](notebooks/D_serving_ai/10a_lake_athena.ipynb) |
 
 Every number is reproduced by its notebook and recorded in MLflow.
@@ -35,7 +35,7 @@ validated and in how it is built, each claim with its number and its notebook, a
 [`docs/why_not_just_use_alphamissense.md`](docs/why_not_just_use_alphamissense.md) for the comparison with
 published predictors.
 The same ground in Chinese, with runnable worked examples, is notebook
-[14g](notebooks/F_science/14g_contributions_and_pitch.ipynb).
+[14f](notebooks/F_science/14f_contributions_and_pitch.ipynb).
 
 ## How the validation works
 
@@ -113,5 +113,5 @@ tests/          unit tests and golden tests of published numbers
 
 ## Status
 
-Complete: 00 account baseline → 13 operations, then 14a → 14g. Each chapter is a notebook that explains
+Complete: 00 account baseline → 13 operations, then 14a → 14f, plus appendix 14x. Each chapter is a notebook that explains
 the step, runs it and records the result; see [`docs/plan.md`](docs/plan.md).

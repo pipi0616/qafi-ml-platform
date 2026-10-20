@@ -7,20 +7,20 @@ page says so in the same breath — that is the point of having the numbers.
 
 > A Chinese walkthrough of this page, with runnable worked examples for the thermodynamic readout,
 > the identifiability problem and additivity, is
-> [`14g`](../notebooks/F_science/14g_contributions_and_pitch.ipynb).
+> [`14f`](../notebooks/F_science/14f_contributions_and_pitch.ipynb).
 
 | # | The claim | The evidence | Where |
 |---|---|---|---|
-| **1** | Predicts **two** free energies — folding and function — not one score, for a protein it has never seen | On held-out KRAS the right energy wins all 7 measured free energies, 1000/1000 bootstrap | [14c](../notebooks/F_science/14c_two_energies.ipynb) |
+| **1** | Predicts **two** free energies — folding and function — not one score, for a protein it has never seen | On held-out KRAS the right energy wins all 7 measured free energies, 6 significantly when whole positions are resampled; on two more held-out proteins the folding side holds in both, the functional side in one | [14c](../notebooks/F_science/14c_two_energies.ipynb) |
 | **2** | A single score cannot do this, measurably | ESM-2 correlates 0.366 with folding and 0.362 with binding — the same answer; our two energies lean 0.23 apart in opposite directions | [14c](../notebooks/F_science/14c_two_energies.ipynb) |
 | **3** | Found and solved *why* the decomposition usually fails | It is not identifiable from one assay type; fitting the readout on the 9 proteins measured both ways is what makes it work. Two alternative fixes measured and rejected | [14c](../notebooks/F_science/14c_two_energies.ipynb) |
 | **4** | Energies add, so single mutants predict combinations | ~5,000 held-out double mutants at R² 0.742 / 0.840; adding measured fitness instead gives a **negative** R² | [14c](../notebooks/F_science/14c_two_energies.ipynb) |
 | **5** | Output in kcal/mol, comparable with experiment | Median per-domain Spearman 0.76 and RMSE 0.74 kcal/mol on the published mega-scale split | [14a](../notebooks/F_science/14a_stability_kcal.ipynb) |
-| **6** | The decomposition splits the proteome the way biology does | Functional positions 2.8× enriched for UniProt active/binding sites; structural ones *depleted* to 0.21× | [14e](../notebooks/F_science/14e_site_map.ipynb) |
-| **7** | It points at pockets real drugs bind, prospectively | KRAS switch-II (sotorasib) and ABL1 myristoyl (asciminib) in the top quarter of their own protein, p ≈ 0.001, no drug ever shown to the model | [14e](../notebooks/F_science/14e_site_map.ipynb) |
-| **8** | The mechanism it reports is useful for a real drug decision | On migalastat's published amenability list: AUROC 0.769 against 0.725 for a zero-shot language model | [14f](../notebooks/F_science/14f_chaperone_rescue.ipynb) |
-| **9** | Answers "how many variants must I measure" with a number | Below ~50 the free zero-shot score wins; one 96-well plate is the crossover; one-hot needs 4× as many | [14d](../notebooks/F_science/14d_low_n_and_design.ipynb) |
-| **10** | A guided design loop beats random picking | 7 of the top 1% against 4, at equal budget | [14d](../notebooks/F_science/14d_low_n_and_design.ipynb) |
+| **6** | The decomposition splits the proteome the way biology does | Functional positions 2.8× enriched for UniProt active/binding sites; structural ones *depleted* to 0.21× | [14d](../notebooks/F_science/14d_site_map.ipynb) |
+| **7** | It points at pockets real drugs bind, prospectively | KRAS switch-II (sotorasib) and ABL1 myristoyl (asciminib) in the top quarter of their own protein, p ≈ 0.001, no drug ever shown to the model | [14d](../notebooks/F_science/14d_site_map.ipynb) |
+| **8** | The mechanism it reports is useful for a real drug decision | On migalastat's published amenability list: AUROC 0.769 against 0.725 for a zero-shot language model | [14e](../notebooks/F_science/14e_chaperone_rescue.ipynb) |
+| **9** | Answers "what is this model worth before I measure anything" with a number | 0.58 Spearman on 128 held-out assays with nothing measured, against 0.42 for a free zero-shot model (better in 97% of them); the standard few-shot pipeline needs ~288 measured variants to match it | [14x](../notebooks/F_science/14x_low_n_and_design.ipynb) |
+| **10** | A guided design loop beats random picking — and the prior stops mattering once it runs | 7 of the top 1% against 4 at equal budget (91% of assays); but swapping the free prior for ours then adds only 0.2 variants, against a 0.156 gap when nothing is measured | [14x](../notebooks/F_science/14x_low_n_and_design.ipynb) |
 | **11** | Processes the upstream data too, exactly | A published experiment reprocessed from raw FASTQ: **Pearson 1.0000**, median difference 1e-04 | [14b](../notebooks/F_science/14b_reads_to_fitness.ipynb) |
 | **12** | Validation that would survive an audit | Whole proteins held out with their relatives, split locked in a dbt seed, opened once, every chapter re-checked against it | [07a](../notebooks/C_ml/07a_feature_design.ipynb), [14a](../notebooks/F_science/14a_stability_kcal.ipynb) |
 | **13** | Shipped, not just trained | 218M variants scored into a queryable lake, a serverless API, a guarded agent, 88 Terraform resources, 263 tests | [09c](../notebooks/C_ml/09c_proteome_scoring.ipynb), [10](../notebooks/D_serving_ai/10a_lake_athena.ipynb), [13](../notebooks/E_wrap_up/13_operations_and_story.ipynb) |
@@ -84,7 +84,7 @@ binding free energies per variant. Spearman, signs aligned, higher is better:
 
 ESM-2 and CPT-1 give the same answer to both questions. A single score has one value, so it can only have
 one preference. Two energies can lean in opposite directions — and the matching one wins all seven
-comparisons in 1000 of 1000 bootstrap resamples.
+comparisons, six of them significantly when whole positions are resampled.
 
 **AlphaMissense is better than our functional energy at binding** (0.382 vs 0.310). The claim is not
 accuracy; it is that the output can be *asked which mechanism is broken*, which decides the next
@@ -180,7 +180,7 @@ Stated here as plainly as the claims, because an interviewer will look for it.
   ThermoMPNN's 0.77, using a generic architecture with no stability-specific design.
 - **Not the most accurate anything, on a single measurement.** AlphaMissense beats the functional energy at
   binding (0.382 vs 0.310) and beats this model on clinical pathogenicity (ClinVar AUROC 0.963 vs 0.921).
-- **Not a clinical tool.** 14f's labels are an in-vitro cell assay used as an ML benchmark; nothing here is
+- **Not a clinical tool.** 14e's labels are an in-vitro cell assay used as an ML benchmark; nothing here is
   a basis for a decision about a person.
 - **Limited by paired data.** Nine proteins measured both ways is the binding constraint on the
   decomposition, and the honest answer to "how would you improve this".
@@ -198,7 +198,7 @@ Stated here as plainly as the claims, because an interviewer will look for it.
 | Every number, one page | [`phase_f_results.md`](phase_f_results.md) |
 | Why not just use AlphaMissense or SPURS | [`why_not_just_use_alphamissense.md`](why_not_just_use_alphamissense.md) |
 | How to say all this out loud, per role | [`interview_pack.md`](interview_pack.md) |
-| This page in Chinese, with runnable examples | [`14g`](../notebooks/F_science/14g_contributions_and_pitch.ipynb) |
+| This page in Chinese, with runnable examples | [`14f`](../notebooks/F_science/14f_contributions_and_pitch.ipynb) |
 | The published work this builds on | [`related_work.md`](related_work.md) |
 | What was built, step by step, and why | [`plan.md`](plan.md) and `notebooks/` |
 | The system around the model | [`../README.md`](../README.md) |

@@ -31,7 +31,7 @@ Spearman against each measured quantity, signs aligned so higher is better (note
 Read the last column. ESM-2 and CPT-1 give **the same answer to both questions** (difference ±0.004):
 asked whether a variant breaks the fold or the binding, they cannot distinguish. AlphaMissense leans
 slightly towards binding. This model's two numbers lean in **opposite** directions, 0.23 apart, and across
-all seven measured energies the matching one wins — in 1000 of 1000 bootstrap resamples.
+all seven measured energies the matching one wins — six of the seven significantly when whole positions are resampled.
 
 That is not a claim that the two energies are more accurate. **AlphaMissense is better than our functional
 energy at binding** (0.382 against 0.310), and says so above. It is a claim about what the output can be
@@ -42,7 +42,7 @@ asked.
 **1. Mechanism.** "Stability is fine, function is broken" is a different action from "it cannot fold". A
 pharmacological chaperone or a corrector can rescue the second and will do nothing for the first. On the
 published migalastat amenability list for GLA — an approved drug, a protein absent from every split — the
-two energies reach AUROC 0.769 against 0.725 for a zero-shot language model (notebook 14f).
+two energies reach AUROC 0.769 against 0.725 for a zero-shot language model (notebook 14e).
 
 **2. Addition.** Free energies add; scores do not. Using single mutants alone to fix each substitution's
 two energies, the thermodynamic model predicts ~5,000 held-out double mutants at R² 0.742 and 0.840. Adding
@@ -55,7 +55,7 @@ inferred ddPCA energy, or with ThermoMPNN's output — rather than only ranked w
 A fourth consequence, at the level of a position rather than a variant: averaging the two energies over a
 position's 19 substitutions **splits** the proteome in a way one score cannot. Positions this model calls
 functionally costly are enriched 2.8× for UniProt active and binding sites while structurally costly ones
-are *depleted* to 0.21× (notebook 14e). A single score moves every class the same way.
+are *depleted* to 0.21× (notebook 14d). A single score moves every class the same way.
 
 ## Where the published tools are better, and should be used
 
@@ -63,7 +63,7 @@ are *depleted* to 0.21× (notebook 14e). A single score moves every class the sa
 |---|---|---|
 | Is this variant likely pathogenic in a patient? | **AlphaMissense**, EVE, CPT-1 | This model is behind on clinical pathogenicity: ClinVar AUROC 0.921 against AlphaMissense's 0.963 and CPT-1's 0.969 (notebook 09c) |
 | How much does this mutation destabilise the fold, as accurately as possible? | **SPURS**, then ThermoMPNN | This model reaches median per-domain Spearman 0.76 on the same split against SPURS' 0.83 (notebook 14a) |
-| I have no measurements and want a quick ranking | **ESM-2 zero-shot** — it is free and, below about 50 measured variants, better than anything fitted on them (notebook 14d) | |
+| I have no measurements and want a quick ranking | Any free score beats fitting one on fewer than ~50 measurements (notebook 14x). Here this model is the stronger free score: 0.58 Spearman against ESM-2 zero-shot's 0.42 on 128 held-out assays, better in 97% of them | |
 
 ## Closest related work
 
