@@ -167,11 +167,11 @@ Deconvolving mutation effects on protein stability and function with disentangle
 | EditorForge | ✅ 已读完整正文（23 页） |
 | CatIF-RL | ✅ 已读完整正文（32 页 + 完整 SI） |
 | **Galpern（AWSEM-IF blend）** | ✅ 已读完整正文 + 补充方法 + 公式图 |
-| ABACUS-T | ⏳ 在读 |
-| KDD 2026 function-aware + 酶设计 | ⏳ 在读 |
-| SPURS 的留出切分 + DETANGO 后 1/3 | ⏳ 在读 |
-| Cagiada 代码可用性 + MBE 2018 | ⏳ 在读 |
-| **新增**：Galpern 引的 [67]「功能位点抗拒稳定性优化」 | ⏳ 在找 |
+| **ABACUS-T** | ✅ 已读正文 + 补充 PDF + Source Data + 原分辨率图 |
+| FPA（KDD 2026）+ EnzymeArt | ✅ 已读（FPA 读的是作者 camera-ready PDF，ACM 页 403） |
+| SPURS + DETANGO（含后 1/3） | ✅ 已读正文 + 补充材料 + 一个 Author Correction |
+| Cagiada 两篇 + Otwinowski 2018 | ✅ 已读（注意 arXiv 版和正式版数字不同） |
+| **新增**：Galpern 引的 [67]「功能位点抗拒稳定性优化」 | ⏳ 在找（最后一篇） |
 
 **读完两篇，我原来从摘要写的结论两条全错。** 记录下来当教训。
 
@@ -398,3 +398,366 @@ Megascale 相关性（表 S1，精确值）：最好是 **AWSEM-PottsMPNN，189 
 讨论里指向设计方向时引了一篇：**"Recent observations that functional sites resist stability
 optimization in backbone-conditioned sequence generation [67]"**——这正是我们 15c 的前提，而且已经有人
 发表了观察。**这篇必须找出来读正文**，加进待读清单。
+
+### (5) SPURS — Li & Luo（Georgia Tech）· **F 阶段第 5 节那个问题的答案**
+
+"Generalizable and scalable protein stability prediction with rewired protein generative models"，
+*Nature Communications* **17:891 (2026)**，线上 2025-12-20，DOI 10.1038/s41467-025-67609-4。
+**注意有一个 Author Correction**（2026-03-16，DOI 10.1038/s41467-026-70929-8）：图 5（ClinVar 那张）
+上传了旧版本，已替换；切分和基准那几张图不受影响。
+
+#### 「unseen proteins」到底怎么切的 — 答案
+
+> "We used the training, validation, and test splits of the Megascale dataset created by Dieckhaus et al.,
+> **which ensured no sequences sharing >25% identity across splits**."
+
+> "To prevent data leakage across evaluation sets, any training sequences with >25% sequence identity to
+> sequences in the independent test sets were removed using **MMseqs2**."
+
+**所以是 25% 序列同一性的聚类留出，到结构域/序列级别——不是家族级、不是 fold 级。** 全文没有任何
+PFAM / CATH / SCOP 家族划分，唯一的同源控制就是 25% 两两同一性。没给覆盖度、E 值或聚类模式参数。
+
+**用的就是 ThermoMPNN 那个切分**（数据可用性直接指向 Kuhlman-Lab/ThermoMPNN），而且**测试集一行没动**，
+只是把训练/验证里和十个独立测试集 >25% 同一的拿掉了：
+
+| | ThermoMPNN 原版 | SPURS 过滤后 |
+|---|---|---|
+| 训练 | 216,919 突变 / 239 结构域 | **203,789 / 212**（去掉 27 个结构域） |
+| 验证 | 27,481 / 31 | 26,548 / 29 |
+| 测试 | 28,312 / 28 | **28,312 / 28（不变）** |
+
+**对我们的意义**：我们 14a 用的是同一个切分，所以对照是公平的。而且**我们的同源规则比它严**
+（局部比对 + 30% 同一性 + 50% 覆盖度 + 跨数据集查到 56 个同源结构域），它只有一个 25% 同一性。
+
+#### 它的数字（表 S1/S3）
+
+**留出测试集 28,312 个突变 / 28 个结构域上，median per-domain Spearman 0.83 vs ThermoMPNN 0.77**，
+24/28 个蛋白更好。混合 Spearman 0.74、Pearson 0.78。
+
+**RMSE 全文零次出现**——只报 Spearman 和 Pearson。我们 14a 表里 SPURS 那行 RMSE 留空是对的。
+
+#### ⚠️ 和我们第 15 章前提查验直接相关：**SPURS 已经做过双突变基准**
+
+补充表 7 的双突变切分：训练 122,278/116、验证 10,672/17、**测试 22,081/20**。
+**那个 22,081 / 20 和我第 ① 步数出来的完全一样**，互相印证。
+
+而它在这同一批测试双突变上的结果（补充表 4）：
+
+| 方法 | Spearman |
+|---|---|
+| **SPURS（学出来的）** | **0.59** |
+| MutateEverything | 0.54 |
+| **SPURS-additive（自己的单突变相加）** | **0.52** |
+| ThermoMPNN-additive | 0.45 |
+| ESM2-additive | 0.40 |
+| DDGun-3D / DDGun-seq | 0.36 / 0.33 |
+| MPNN-additive | 0.16 |
+
+**这把第 ② 步的结论从"否"改成"头部空间存在但很小"**：学出来的模型比自己的可加基线只高
+**0.07 Spearman**（0.59 vs 0.52）。这和我查到的"非可加性主要是量程压顶"是**一致的**——
+正因为大部分差异是测量截断，可学的余量才这么薄。
+
+**第 15 章的 notebook 和 plan.md 第 10 节要据此修订**：不能再写"15a 不能是多突变那一章"，
+而要写"头部空间有已发表的数字，只有 0.07，而且 MutateEverything 已经占了这个题"。
+
+#### 它没做的泄漏检查（我们可以做得更好的地方）
+
+- **Megascale 和 Human Domainome 之间没有任何同一性过滤**——而那是它 522 个蛋白的头条结果之一。
+- Megascale 和 ProteinGym 之间没有检查（141 个 DMS，只说排除了测稳定性的）。
+- Megascale 和 ClinVar / gnomAD / CDD 之间没有检查。
+- 没有任何结构/fold 级别的冗余检查。
+
+它自己倒是很诚实地承认**基线被它占了便宜**："their training data are supersets of our filtered
+Megascale training set"；MutateEverything "13 of 20 proteins in our test set were included in its
+training set"。
+
+**代码和权重都可用**：https://github.com/luo-group/SPURS ，权重在
+https://huggingface.co/cyclization9/SPURS （`get_SPURS_from_hub()`）。许可证 NOT STATED。
+
+### (6) DETANGO — 正文读完，我们第 1 节的三条定位全部成立
+
+"Deconvolving mutation effects on protein stability and function with disentangled protein language
+models"，Ding, Li, Tu, Luo, Luo（**和 SPURS 同一个组**），bioRxiv v2 2026-02-26，
+DOI 10.64898/2026.02.03.703560，PMC12889624。
+
+#### 三个悬着的问题，答案
+
+**① 是不是一个蛋白一个模型、在蛋白内部按残基做交叉验证？是，原文逐字：**
+
+> "**For each protein in the dataset, we individually trained DETANGO** using the loss function described
+> above."
+
+> "**For each protein, we performed a 10-fold cross-validation, where residues are partitioned into
+> training and validation sets across folds, and constructed the final DETANGO model as an ensemble of
+> the 10 independently trained replicas.**"
+
+**关键推论（论文没说）**：最终报告的模型是 10 个复制的集成，所以它**合起来在被打分的那个蛋白的
+每一个残基上都训练过**。论文里每一个数字都来自一个拟合过测试蛋白自身残基的模型，没有任何
+留出残基的报告。
+
+**② 有没有在任何地方留出整个蛋白或家族、去预测一个零数据的蛋白？没有，全文都没有。**
+"held out"、"hold-out"、"unseen" 这些词零次出现。架构上也做不到——模型是拟合到目标蛋白身上的。
+
+**③ 默认稳定性输入是什么？FoldX 预测，跑在 AlphaFold2 预测结构上。** 原文：
+"Unless otherwise specified, DETANGO uses FoldX ΔΔG predictions as the default stability measurements."
+
+而且它自己承认实测更好："**DETANGO (DMS) outperformed DETANGO (FoldX)**, highlighting the value of
+incorporating experimentally measured stability data over computationally predicted scores"。
+
+**那句"operational rather than strictly guaranteed" 的完整上下文**（在 Methods 公式 5 之后）：
+
+> "**While the separation between stability- and function-specific representations is operational rather
+> than strictly guaranteed**, our formulation aims to isolate components of the evolutionary signal that
+> are preferentially associated with stability versus with functions."
+
+这句话是在承认 `h_function = h_evolution − h_stability` 只是嵌入空间里的一个减法，没有任何独立性约束。
+他们试过加互信息正则项，"modest but statistically non-significant performance gains"，最后**没有采用**。
+
+#### 两个值得记的新发现
+
+- **超参数是在 4 个蛋白上挑的：CYP2C9、NUDT15、PTEN、GRB2——而这 4 个全在它 11 个 SBI 基准蛋白里面。**
+  论文没有承认这一点。
+- **在唯一一个独立的变构基准上（Amor et al. 的 17 个蛋白 / 159 个位点），DETANGO 的 AUPRC 只和
+  FoldX 打平**——而 AUPRC 正是论文自己论证过的、针对这种不平衡标签该用的指标。
+
+#### 大部分数字只在图里
+
+SBI 分类、Domainome 功能位点、BioLiP2、PocketMiner、KRAS 变构、17 蛋白变构、globin、RAS——
+**正文和补充材料里都没有给 AUPRC / AUROC / nDCG / F1 的数值**。要引用必须去 Source Data 或读图。
+正文里有数的只有：Domainome 408 蛋白 / 213,332 残基 / 17,381 个 CDD 功能位点（基线率 8.1%）、
+168 个锌结合位点全部命中、PUM2 的 AUPRC 0.87。
+
+#### 结论：我们第 1 节的三条定位全部被正文证实
+
+| 我们当初写的 | 正文核对 |
+|---|---|
+| 一个蛋白一个模型，不能预测全新蛋白 | ✅ 逐字证实，而且比我们写的更严重——最终模型见过测试蛋白的每个残基 |
+| 不是物理模型、输出没有单位 | ✅ 证实 |
+| 在复现语言模型 + 用 FoldX 预测当监督 | ✅ 证实，而且作者自己承认实测比 FoldX 好 |
+
+**同组套娃要注意**：DETANGO 用 SPURS 当稳定性输入（BioLiP2 的 24,252 个蛋白、PocketMiner 的 33 个），
+**同时又把 SPURS 当基线**放在同几张图里。而 SPURS 自己那套功能位点方法（ESM1v vs −ΔΔG 的 sigmoid
+拟合残差，239 个 Domainome 结构域上 AUROC 0.69）在 DETANGO 里变成了那个
+"Logistic regression model" 基线。引用时要说清这层关系。
+
+### (7) Otwinowski 2018 — **第 ② 步那个压顶发现的直接先例**
+
+"Biophysical Inference of Epistasis and the Effects of Mutations on Protein Stability and Function"，
+Jakub Otwinowski（单作者），*Mol Biol Evol* **35**(10):2345–2354 (2018)，DOI 10.1093/molbev/msy141。
+代码数据 https://github.com/jotwin/ProteinGthermo （含 `energies.csv`）。
+⚠️ arXiv v2 和**正式版数字不同**，正式版更保守，引用必须用正式版。
+
+三态热力学模型（未折叠-未结合 / 折叠-未结合 / 折叠-结合），拟合 GB1 的 1,045 个单突变 + 约 53.6 万个
+双突变（Olson 2014），推出 2,092 个能量参数。
+
+#### 它已经发现了测量地板制造假上位效应，机制和方向和我们一模一样
+
+> "A minimal amount of non-specific background binding, p0, **imposes a lower bound on measured binding
+> fraction in the experiment**, estimated to be f0 = −5.69 by our three state model. **This threshold
+> effect produces large amounts of non-biological positive pairwise epistasis**, e.g. when the double
+> mutant has the same level of binding as one of the single mutants at the background level."
+
+它的处理方式是：把 p0 显式写进似然，**并且把靠近地板的那些配对从上位效应分析里剔除**。
+
+**我们第 ② 步的发现因此不是新现象，但量化方式是新的**：它从未把这件事叫做 saturation 或 dynamic
+range（这两个词全文都没出现过这个意思），**没有推广到整个数据集**，而且是把受影响的配对**丢掉**而不是
+**分解**。我们在 131,143 个双突变上做的"残差 vs 预测严重程度相关 −0.72、残差 vs 位置间距无关"这个
+分离检验，它没做。**所以第 ② 步的结论要改成"有先例、我们做的是量化和推广"，不能写成新发现。**
+
+它的量化：一个**完全没有能量耦合**的模型就能复现观测到的配对上位效应 **ρ = 0.66、符号准确率 0.73**
+（剔除近地板配对之后）。也就是说，看起来的上位效应里**约三分之二只是测量非线性**。
+
+#### 另一个结果直接支撑我们 14c 的做法
+
+两态 vs 三态模型：对适应度读数的拟合几乎一样好（**96.4% vs 97.1%**），但三态模型的能量和 81 个
+独立实测 ΔΔG 相关 **ρ = 0.91、RMSE 0.39 kcal/mol**，而两态模型的能量 **"have no relation to the
+independently measured ε_f"**。
+
+**拟合读数拟合得好，完全不保证推出来的潜在能量是物理的。** 这是"必须和实测 kcal/mol 对账"这件事
+现成的、发表过的论证——正是我们 14c 做的那条验证。
+
+#### 对我们 k=2 边界的直接警告
+
+外推到四突变（Wu et al. 的 204 个变体）时：相关性掉到 **0.48**；分类上
+**"classifying only 11% of functional quadruple mutants correctly"**（正式版数字，arXiv 版写的是
+86% TPR，差别巨大）；约 **20%** 的变体适应度被严重低估，"some unaccounted for epistasis is restoring
+binding or stability"。
+
+**这给我们第 15 章"k≥3 必须标成外推"提供了一个发表过的量化依据。**
+
+### (8) Cagiada 的两篇 — F 阶段第 5 节那个"能不能当基线"的问题：**能，而且很容易**
+
+**注意我们原来记的"Cagiada 2023"其实是两篇，而且分在两条技术路线上：**
+
+| | Cagiada et al. 2023 | FunC-ESMs 2025 |
+|---|---|---|
+| 出处 | *Nat Commun* **14**:4175，DOI 10.1038/s41467-023-39909-0 | *eLife* Reviewed Preprint，DOI 10.7554/eLife.108160.1 |
+| 功能轴 | **GEMME**（比对/进化，不是语言模型） | **ESM-1b** |
+| 稳定性轴 | **Rosetta** Cartesian ddG（或 RaSP） | **ESM-IF**（跑在 AlphaFold2 结构上） |
+| 分类方式 | **训练过的 CatBoost 分类器**，8 个特征 | **两个固定阈值**（ESM-1b < −6.5，ESM-IF < −7），不训练 |
+| 训练数据 | NUDT15 / PTEN / CYP2C9，9,945 个变体 / 923 个位置 | 不训练；阈值用 32 个 ProteinGym MAVE + Tsuboyama 的 17.4 万个 ΔΔG 定 |
+
+**能不能当基线跑：能。** 2023 那篇的**训练好的权重直接提交在仓库里**
+（`catboost_model/cat_trained_24jun22.cbm`，Apache 2.0），还带一个一键 Colab
+（https://github.com/KULL-Centre/_2022_functional-sites-cagiada ，Zenodo 10.5281/zenodo.8046585）。
+每个新蛋白需要：序列、结构、一个 kcal/mol 的 ΔΔG 文件（RaSP 是快路径）、一个 GEMME ΔΔE 文件。
+**阈值不用重新拟合，已经烤进模型。** FunC-ESMs 更简单——两个发表过的数字，输入只要序列 + AF2 结构
+（https://github.com/KULL-Centre/_2024_cagiada-jonsson-func ，全蛋白组预测在 KU ERDA）。
+
+#### 它们的留出数字，我们 14d 对照时要用这个
+
+2023 那篇的主模型是**在三个蛋白上全部训练**的，留出蛋白只是补充材料里的稳健性检查。
+补充表 2 的留出蛋白 F1：
+
+| | 留出蛋白上 | GRB2-SH3 上（全模型） |
+|---|---|---|
+| 功能性**变体** F1 | **0.13 – 0.33** | **0.32** |
+| 功能性**位点** F1 | 0.51 – 0.58 | **0.60** |
+
+**正文里那些漂亮数字（95%、90%）是训练集上的回代，不是留出。** 它和前人方法比的那条是
+**10 个酶上 77/109 个已知功能位点，TPR 0.71**，对照 0.40（Cheng 2005）和 0.60（Chelliah）。
+
+两条和我们直接相关的：
+
+- **它把 ΔΔG 截断在 0–5 kcal/mol**："setting all values below/above a range of 0 – 5 kcal/mol, to 0 or
+  5"。又一个处理量程的例子。
+- **它自己承认的那条局限和我们 14d 的盲点是同一个**："some residues will have a direct role in
+  function, but also be important for protein stability; **our analysis will miss those residues**" 以及
+  "**the reverse is not true**"。我们 14d 的 SHP2 和变构口袋失败属于同一类。
+- 它引 Tsuboyama 时说："Very recently, it has been shown that one can also use large-scale measurements
+  of stability changes as input to an approach inspired by our work."
+
+### (9) FPA（KDD 2026）— 偏好对齐让反向折叠 function-aware
+
+"From Structure to Function: Preference Alignment for Function-aware Protein Inverse Folding"，
+Tamatgar, Park, Yao, Chen, Pan（A*STAR 新加坡 + 延世大学），KDD'26 pp. 12066–12077，
+DOI 10.1145/3770855.3818896。代码 MIT：https://github.com/nilufertamatgar/Function-Aware-Protein-Inverse-Folding
+
+微调 **ProteinMPNN 和 ESM-IF**，用的是 **SPPO 推出来的损失（不是 DPO，论文明确反对 DPO）**。
+"功能"的定义是**位置性的**：用 **SIFT**（保守性预测器）找关键位点，在那些位点上放 SIFT 判为
+"不容忍"的替换当负样本，再要求**两个 IF 模型都给这个负样本比野生型更高的似然**（硬负样本挖掘）。
+作者自己把这种监督叫 "**hypothetical**"、"**weak** but biologically grounded"。
+
+**两条要记的：**
+
+1. **它自己的表 1 里，普通 DPO 在它的头条指标（关键位点恢复率 CSR）上赢过它的 FPA**：
+   ESM-IF+DPO 34.29 vs +FPA 31.22；ProteinMPNN+DPO 21.64 vs +FPA 20.08。它声称的胜利是"权衡"
+   （DPO 的困惑度和序列恢复率崩了），不是 CSR。
+2. **完全没有湿实验**，而且这是它的卖点："enabling scalable supervision without additional wet-lab
+   measurements"。4.5 节那个酶的案例是**回溯重打分**一个已有数据集，没有一条 FPA 设计的序列被表达过。
+
+切分是继承 ProteinMPNN 的 CATH 4.2 40% 非冗余结构簇 + 一个和 ESM-IF 预训练划分的重叠过滤，
+**没有家族级留出**。另外它**完全不评估折叠结构**——没有 AlphaFold/ESMFold、没有 scTM、没有 pLDDT。
+代码虽然是 MIT，但**没有 SIFT 流程的代码**，也就是说它真正的贡献（偏好对的构造）**没法从头复现**，
+只放了产出的 CSV。
+
+### (10) EnzymeArt（bioRxiv 2026）— **有真湿实验，57/60 条有活性**
+
+"Function-guided design of active enzymes"，Hu, Wu, Yang, Li, Zhu（浙大 + 清华深圳），
+bioRxiv 2026-06-29，DOI 10.64898/2026.06.27.735025。
+
+**先更正分类：这篇不是反向折叠。** 它是**功能条件的从头酶生成**——输入是文字提示（EC 号、酶名、
+InterPro 域），不需要主链。反向折叠（ProteinMPNN）只是它第 4 阶段精修里的一个子步骤。
+
+**它是这一批文献里唯一有真湿实验的：合成 60 条基因，57 条有活性**（ADH 17/20、MDH 20/20、
+脂肪酶 20/20），纯化后做了稳态动力学（ADH11 k_cat 223.7 s⁻¹、k_cat/K_M 22.24 s⁻¹mM⁻¹，
+在同样条件下超过天然对照 P00330）。MDH19 和最近的 BLASTP 命中只有 **33% 同一性**。
+
+**但是：**
+
+- 三个酶类都是**成熟的天然酶类**，作者明说 "not ... a demonstration of unrestricted enzyme design"。
+- **挑候选去合成的那个动力学排序模型用的是随机切分**（随机 10%、随机 9:1），**不是同源感知的**。
+  这是整篇评估里最弱的一环，因为它决定了合成哪些。
+- **代码和权重都还没放**（"upon publication"）。
+- 它自己报告了一个新颖性比较的缺陷（查询文件 4,736 条里只有 926 个唯一标头）。
+
+**一句话值得抄进我们的讲稿**：作者自己的结论是
+**"Consequently, generation alone is insufficient."**——生成本身不够，必须有筛选。
+这正是"生成器提方案、两个能量做选择"这个框架的论证。
+
+### (11) ABACUS-T — **15c 最重要的对手，而且我从摘要写的那条错得最厉害**
+
+"Enhancing functional proteins through multimodal inverse folding with ABACUS-T"，Liu, Wu, Wang 等，
+*Nature Communications* **16**:10177 (2025)，2025-11-19，DOI 10.1038/s41467-025-65175-3。
+代码 Zenodo 10.5281/zenodo.17089342，**仅限非商业用途**，权重是否包含 NOT STATED。
+
+模型是**序列空间的离散扩散（DDPM）**，不是自回归；每步同时解码残基类型**和侧链构象**；
+"多模态"= 主链 + **配体原子** + **多个构象态** + **MSA**（后两个是另外微调的变体）。
+
+#### 我写错的那条（最严重的一次）
+
+我写："重设计 xylanase 和 TEM β-内酰胺酶，**活性保持或超过野生型**，设计**全部 +10 °C 以上**"。
+
+**正文的真实数字：**
+
+| | 测到有活性 | **活性 ≥ 野生型** | 测过 Tm 的 |
+|---|---|---|---|
+| Xylanase（12 条） | 12/12 | **2/12** | 2 条（+19、+17 °C） |
+| TEM-1（11 条） | 10/11 | **4/11** | 3 条（+4、+12、**+23** °C） |
+
+**整体诚实的成功率：23 条全序列酶重设计里，6 条达到或超过野生型活性（约 26%），
+其中只有 2 条同时拿到明确的 Tm 提升和保住的活性。** 而且约 66 条设计里**只有 10 条测了 Tm**，
+作者明说是"to balance cost"。**全文没有任何 kcat / KM / kcat·KM⁻¹**——所有"活性"都是单点相对速率。
+
+还有一条**只在 Source Data 里、正文没写**的：`txyl1-4`（纯 ABACUS-T 不带 MSA 的那四条）
+"used about 10 times the amount of natural protein due to its low activity"——
+也就是**比野生型低一到两个数量级的比活**。
+
+#### 三条对我们 15b/15c 是直接证据，而且是湿实验级的
+
+**① 反向折叠模型单独上，确实会在提稳定性的同时毁掉功能。作者自己的话：**
+
+> "for the enzymes tested here, improvements in inverse folding achieved by ABACUS-T **in the absence of
+> evolutionary information are insufficient for designing extensive stabilizing mutations without
+> compromising catalytic activity**."
+
+数字对得上：纯 ABACUS-T（不带 MSA）在 xylanase 上 **0/4** 条活性增强、在 TEM 上 **0/3**。
+它们的解法是加 **MSA 进化信息**，不是加一个功能代价模型。
+
+**② "按注释把活性位点固定住"这件事被湿实验证伪了。**
+ProteinMPNN 对照组**固定了活性位点残基**（xylanase 固定 12 个、TEM 固定 7 个、ABP 固定 7 个），
+结果：
+
+> "Purified proteins of these two designs **did not show detectable catalytic activity**."
+
+xylanase 0/2、TEM 0/2、ABP 结合 0/4。**这比我之前引的 EditorForge 那条循环论证强得多**——
+这是真实验、真阴性。
+
+**③ 作者把我们打算做的事明确写成了未来工作：**
+
+> "Possible improvements on this aspect include ... **using activity-aware scoring functions trained on
+> experimental data** to prioritize designs with enhanced activity alongside stability."
+
+这正是我们那个两能量 oracle。**发在 Nature Communications 上，写成了下一步。**
+
+#### 它还给了一条干净的活性-稳定性权衡前沿
+
+`prior weight α` 这个旋钮直接控制权衡，作者原话："**implicitly controlled the tradeoff between
+retaining catalytic activity and enhancing structural stability**"。TEM 上看得最清楚：
+
+| 设计 | 突变数 | 相对活性 | Tm 变化 |
+|---|---|---|---|
+| plact2-0.5（α=0.5，重 MSA） | **12** | **2.60×** | 仅 +4 °C |
+| plact2-0.2（α=0.2） | 37 | 1.44× | +12 °C |
+| tlact2（纯 ABACUS-T，无 MSA） | 56 | 0.77× | **+23 °C** |
+
+**突变数越多、越不管进化信息 → 越稳定、活性越差。** 这条前沿可以直接当我们 15c 的参照。
+
+#### 它的切分和两个短板
+
+**切分：MMseqs2 30% 同一性 + PDB 发布日期截断，没有家族级或 fold 级留出。**
+而且——**那四个湿实验靶点（1gud/1rpj、4pn2、1jvj、5wi3）全部早于它 2022-04-30 的训练截断**，
+按它自己描述的建库规则，这些蛋白（或其 30% 同一性簇）**就在训练池里**。论文对此一字未提。
+
+**单突变 ΔΔG 上它输给物理方法**（补充表 5）：FoldX **0.597**、Rosetta **0.553** vs ABACUS-T **0.540**。
+作者承认："deep learning models, including ABACUS-T, **do not surpass traditional models in predicting
+the effects of single mutations**."
+
+#### 一个对 15a 有用的数字（非抗体体系）
+
+ProteinGym 零样本（21 个蛋白、334,215 个变体）平均 Spearman：
+ABACUS-T_prior **0.48** > MSA Transformer 0.47 > ABACUS-T 0.45 > ESM-IF1 0.42 > ESM2-650M 0.39 >
+**ProteinMPNN 0.23（垫底）**。
+
+**这是一个正经的、非抗体的证据，说明 ProteinMPNN 在排序突变效应上很弱。**
+我之前从抗体那篇得出同样结论是引错了来源，但结论本身在这里有更合适的出处。
