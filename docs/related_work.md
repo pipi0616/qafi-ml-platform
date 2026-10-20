@@ -166,11 +166,12 @@ Deconvolving mutation effects on protein stability and function with disentangle
 | 抗体反向折叠基准 | ✅ 已读完整正文（20 页） |
 | EditorForge | ✅ 已读完整正文（23 页） |
 | CatIF-RL | ✅ 已读完整正文（32 页 + 完整 SI） |
-| Galpern（folding + dark energy） | ⏳ 在读 |
+| **Galpern（AWSEM-IF blend）** | ✅ 已读完整正文 + 补充方法 + 公式图 |
 | ABACUS-T | ⏳ 在读 |
 | KDD 2026 function-aware + 酶设计 | ⏳ 在读 |
 | SPURS 的留出切分 + DETANGO 后 1/3 | ⏳ 在读 |
 | Cagiada 代码可用性 + MBE 2018 | ⏳ 在读 |
+| **新增**：Galpern 引的 [67]「功能位点抗拒稳定性优化」 | ⏳ 在找 |
 
 **读完两篇，我原来从摘要写的结论两条全错。** 记录下来当教训。
 
@@ -317,3 +318,83 @@ KL 锚定"prevents reward hacking"，没有任何证据。
 **对我们最有用的一点**：这篇是**我们那两条防泄漏规矩的现成反面教材**——
 "标尺不能是靶子"和"切分必须到同源级别"。它还顺手给了一张 backbone-only 条件下的基线表
 （ProteinMPNN 恢复率 0.4704、ESM-IF 0.5359、ABACUS-T 0.6042），虽然基线都被喂得不全，引用时要说明。
+
+### (4) Galpern et al. — AWSEM-IF blend（CRG 巴塞罗那，Dias / Frazer 组）
+
+[bioRxiv 2026.07.30.741764](https://doi.org/10.64898/2026.07.30.741764)，2026-08-04，未经同行评审。
+正文 + 补充方法 + 公式图 + 表 S1/S2 全部读完。
+
+**这是 F 阶段以来最接近 14c 的工作，而且我上一轮漏判了一处要紧的。**
+
+#### 我写错的那处
+
+我写"摘要里没给 kcal/mol 单位"。**错了。它有单位，而且和实测能量对过账。**
+
+- 明确换算到 kcal/mol：`ΔE_fold[kcal/mol] = ΔE_fold · σ_ΔΔG / σ_ΔE_fold`，其中 **σ_ΔΔG = 0.9777 kcal/mol**（取自 Megascale 天然蛋白）。
+- 而且它对账用的是**和我们 14c 完全同一批双读数实验**：**KRAS（Weng）、PSD95-PDZ3、GRB2-SH3、Src kinase**，拿 MoCHI 推出来的 ΔΔG_fold / ΔΔG_bind / ΔΔG_activity 当真值。
+
+所以我们原来写的"和它最硬的区别是按 kcal/mol 对账"——**这条差别不成立了**，它也做了，用的还是同一批数据。
+
+#### 方法（正文确认）
+
+```
+ΔE_fold = (1−λ)·ΔE_AWSEM/σ_AWSEM  +  λ·ΔE_IF/σ_IF        (公式 1)
+ΔE_dark = ΔE_evo − ΔE_fold                                  (公式 2)
+ΔE_evo  = k_B·T_sel·ΔΨ_evo   （ESM-1v masked marginals，按蛋白定选择温度）
+```
+
+物理项是 **AWSEM** 粗粒化力场（只用 burial + contact 项，backbone 固定，忽略熵）。
+IF 项试了三个：**ESM-IF1、ProteinMPNN、PottsMPNN**。混合就是**一个标量 λ 的加权和**，不是学出来的组合。
+对照里还放了有监督的 **ThermoMPNN**。
+
+#### 它最硬的结果：IF 模型在功能位点上确实有偏，而且量化了
+
+| 在"dark energy 最高的那 1% 位点"上的 RMSE（kcal/mol） | |
+|---|---|
+| 纯 ESM-IF | ≈ 1.11 |
+| 纯 ProteinMPNN | ≈ 0.89 |
+| 纯 PottsMPNN | ≈ 0.80 |
+| **AWSEM-PottsMPNN / AWSEM-ProteinMPNN 混合** | **0.4–0.6，而且在全程基本平的** |
+
+在 M-CSA 的 785 个酶的**实测催化残基**上：纯 IF 预测 **1–2 kcal/mol 的失稳**，混合后 **< 1**。
+而纯 AWSEM 反而把活性位点突变预测成**稳定化**（负值）。作者的结论：
+"IF models are biased against the experimentally observed stability-function trade-off,
+leading them to overestimate ΔE^fold at catalytic residues."
+
+这条在 Domainome 和那四个双读数 DMS 上都复现了。**所以"IF 在功能位点有偏"现在是有正文、有数字的已知问题。**
+
+Megascale 相关性（表 S1，精确值）：最好是 **AWSEM-PottsMPNN，189 个天然结构域上 Pearson r = 0.7377（λ = 0.6674）**。
+纯模型端点〔读自图〕：天然蛋白上纯 AWSEM ≈ 0.46、纯 PottsMPNN ≈ 0.67；de novo 设计上反过来，纯 AWSEM ≈ 0.59 > 纯 IF ≈ 0.42–0.53。
+
+#### 它的方法学缺口：**根本没有留出切分**
+
+这是正文里最值得记的一条。全文**没有任何一句**描述自己方法的 train/test 切分、交叉验证或留出蛋白；
+"cross-validation"、"held-out"、"training set" 这些词**只在描述 ThermoMPNN 时出现**
+（"Restricting the analysis to its test set"）。
+
+那个唯一的拟合参数 λ 是**在报告性能的同一批 Megascale 数据上取 Pearson r 最大值**定出来的，
+然后原封不动用到所有下游分析。σ_ΔΔG 也取自 Megascale 并到处复用。
+
+只拟合一个标量，过拟合风险确实小，**但这不是留出评估**，而且论文没有声称下游数据集和 Megascale
+不同源。唯一和家族有关的处理是**聚合而非切分**：Domainome 的 AUPRC 先在 PFAM 家族内平均再跨家族平均。
+
+#### 其余要点
+
+- **只打分，不做设计**（这条我上一轮判对了）。所有分析都是穷举单点替换。
+- **只做单点突变，明确把上位效应和多突变排除在外**："leaving epistatic and multi-site effects out of scope"。
+- 作者自己说 dark energy **不是严格意义的物理功能能**："its thermodynamic interpretation is clearest
+  when the selection temperature for function equals that for folding, as in binding, but the scale may
+  differ for other chemical activities such as catalysis"。
+- **代码和数据都公开、可直接当基线跑**：
+  - 代码 https://github.com/DiasFrazerGroup/blend_and_disentangle（MIT，带 CLI 和复现 notebook）
+  - AWSEM 实现 https://github.com/HanaJaafari/Frustratometer/tree/galpern2025
+  - **预计算分数 https://doi.org/10.5281/zenodo.21241135**，含 megascale / mcsa / cancer /
+    human_subset / human_gof_lof，**单位就是 kcal/mol**
+- 下游还做了癌症体细胞突变（癌基因 vs 抑癌基因）和 HGMD 的 GOF/LOF 分类，发现
+  **GOF 变异是唯一 dark energy 大于折叠能的一类**。
+
+#### 一条要追的新文献
+
+讨论里指向设计方向时引了一篇：**"Recent observations that functional sites resist stability
+optimization in backbone-conditioned sequence generation [67]"**——这正是我们 15c 的前提，而且已经有人
+发表了观察。**这篇必须找出来读正文**，加进待读清单。
