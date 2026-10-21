@@ -133,17 +133,6 @@ urls = [
 ]
 
 [[dataset]]
-name = "proteinmpnn"
-version = "8907e6671bfbfc92303b5f79c4b5e6ce47cdef57"  # the GitHub commit of dauparas/ProteinMPNN
-refresh = "manual"     # the repository has not moved since 2023-06-27
-what = "ProteinMPNN: the fixed-backbone inverse folding model and its vanilla v_48_020 weights, the checkpoint Sumida 2024 used and the one ABACUS-T benchmarks against (chapter 15a)"
-urls = [
-    "https://raw.githubusercontent.com/dauparas/ProteinMPNN/{version}/protein_mpnn_run.py",
-    "https://raw.githubusercontent.com/dauparas/ProteinMPNN/{version}/protein_mpnn_utils.py",
-    "https://raw.githubusercontent.com/dauparas/ProteinMPNN/{version}/vanilla_model_weights/v_48_020.pt",
-]
-
-[[dataset]]
 name = "galpern-blend"
 version = "21241135"   # Zenodo record of Galpern et al. 2026 (bioRxiv 2026.07.30.741764)
 refresh = "manual"     # supplementary data of a finished preprint
