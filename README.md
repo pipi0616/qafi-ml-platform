@@ -25,13 +25,16 @@ challenges) from research scripts into that system.
 | **Map what each position is for** | Positions called functionally costly are enriched **2.8×** for UniProt active and binding sites (structural ones are depleted). The KRAS switch-II and ABL1 myristoyl pockets, which marketed drugs bind, land in the top quarter of their own protein. Served through the API and the agent | [14d](notebooks/F_science/14d_site_map.ipynb) |
 | **Tell which variants a drug can rescue** | Migalastat's published amenability list for GLA: **AUROC 0.769** against 0.725 for a zero-shot language model, on a protein absent from every split | [14e](notebooks/F_science/14e_chaperone_rescue.ipynb) |
 | **Say what the model is worth before any measurement** | On 128 held-out assays it ranks variants at **0.58 Spearman** with nothing measured, against 0.42 for a free zero-shot model (better in 97% of them). The standard few-shot pipeline needs ~288 measured variants to match that — three 96-well plates. A guided design loop then finds **7 of the top 1%** against 4 for random picking | [14x](notebooks/F_science/14x_low_n_and_design.ipynb) |
+| **Tell a generator which positions it may not change** | Inverse folding alone cannot find them: AUROC **0.532 at p = 0.28** on the KRAS positions that lose binding while folding is fine, and last of seven rankings once an assay reads activity. Distance and burial cannot either (0.530). Our functional energy beats the conservation ranking published work falls back on across 146 held-out assays, **p = 6.3e-11** | [15c](notebooks/G_design/15c_which_positions.ipynb) |
+| **Add to a generator that already saw these proteins** | ProteinMPNN was pretrained on their structures, so the ablation is the test: generator alone 0.496 median Spearman, **generator plus our two energies 0.612, better in 130 of 132 assays** (p = 2.5e-23); adding ESM-2 instead reaches 0.527. Our folding energy alone scores 0.621, so for ranking we add more than the generator does | [15b](notebooks/G_design/15b_variant_ablation.ipynb) |
+| **Run a design campaign that can be audited** | Intent screened against an allow-list, positions ranked, the protected set hashed into the provenance; 560 positions, 280 held fixed, four designs changing 245-259 positions and **none touching a protected position** | [15d](notebooks/G_design/15d_campaign_pipeline.ipynb) |
 | **Score the proteome and serve it** | 217,670,004 missense variants of 20,652 human proteins; a lookup scans 6.5 MB of a 2.6 GB table, ~0.15 s per request warm | [09c](notebooks/C_ml/09c_proteome_scoring.ipynb), [10](notebooks/D_serving_ai/10a_lake_athena.ipynb) |
 
 Every number is reproduced by its notebook and recorded in MLflow.
 
 **Start here: [`docs/contributions.md`](docs/contributions.md)** — what is new in the method, in how it is
 validated and in how it is built, each claim with its number and its notebook, and a section on what is
-*not* claimed. Then [`docs/phase_f_results.md`](docs/phase_f_results.md) for every number on one page, and
+*not* claimed. Then [`docs/phase_f_results.md`](docs/phase_f_results.md) and [`docs/phase_g_results.md`](docs/phase_g_results.md) for every number on one page, and
 [`docs/why_not_just_use_alphamissense.md`](docs/why_not_just_use_alphamissense.md) for the comparison with
 published predictors.
 The same ground in Chinese, with runnable worked examples, is notebook
