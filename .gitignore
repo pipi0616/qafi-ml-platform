@@ -48,3 +48,8 @@ airflow/.airflow/
 .nextflow/
 .nextflow.log*
 work/
+
+# Campaign outputs; the pipeline regenerates them
+/results/
+pipelines/*/work/
+pipelines/*/.nextflow*
