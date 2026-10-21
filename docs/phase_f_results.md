@@ -24,6 +24,31 @@ Reproduced the published filtering chain exactly (776,298 → 607,839 → 391,09
 **Cross-dataset leakage:** 56 mega-scale domains are homologous to this project's locked test proteins.
 Removing them costs 0.010 Spearman; everything downstream uses the decontaminated model.
 
+**Double mutants** (added 2026-10-21). SPURS publishes a second benchmark on the same split: the 22,081
+doubles of those 20 test domains. A single-substitution model enters by summing its two components, as
+the `-additive` rows do. Spearman:
+
+| Method | Spearman | |
+|---|---|---|
+| Summing *measured* singles | **0.744** | the ceiling for any additive method |
+| SPURS (predicts doubles directly) | 0.59 | |
+| MutateEverything | 0.54 | |
+| SPURS-additive | 0.52 | |
+| **Ours-additive** | **0.496** | 4th of 9 |
+| ThermoMPNN-additive | 0.45 | |
+| ESM2-additive | 0.40 | |
+| DDGun-3D / DDGun-seq | 0.36 / 0.33 | |
+| ProteinMPNN-additive | 0.16 | |
+
+0.474 on the 19,682 genuine doubles (2,399 of the 22,081 carry a synonymous component such as
+`T9Q:N23N` and are singles in disguise; SPURS counts them, so the headline figure keeps its convention).
+Median per domain 0.724.
+
+The gap to SPURS is smaller here than on singles — 0.024 against 0.066 — so it is single-mutant accuracy
+that lags, not the summing. And every published model sits far below the 0.744 ceiling, which agrees
+with chapter 15: most of the apparent non-additivity in this dataset is assay range compression, not
+epistasis left on the table.
+
 ## 14b · Sequencing reads to fitness
 
 Reprocessed a published ddPCA experiment (PSD95-PDZ3, Faure et al. 2022) from the raw FASTQ with the

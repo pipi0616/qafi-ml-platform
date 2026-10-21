@@ -127,6 +127,76 @@ def megascale(csv_path: str | Path, splits: dict[str, list[str]]) -> pd.DataFram
     return out.reset_index(drop=True)
 
 
+# Supplementary Table 4 of SPURS (Li & Luo, Nat Commun 17:891), Spearman on the 22,081 double mutants
+# of the same 20 test domains. A model that only scores single substitutions enters as the sum of its
+# two components, which is how the "-additive" rows were produced.
+PUBLISHED_DOUBLE_SCORES = {
+    "SPURS (doubles directly)": 0.59,
+    "MutateEverything": 0.54,
+    "SPURS-additive": 0.52,
+    "ThermoMPNN-additive": 0.45,
+    "ESM2-additive": 0.40,
+    "DDGun-3D": 0.36,
+    "DDGun-seq": 0.33,
+    "ProteinMPNN-additive": 0.16,
+}
+
+
+def doubles(csv_path: str | Path, splits: dict[str, list[str]], split: str = "test") -> pd.DataFrame:
+    """Every double substitution of ``split``'s domains, split into its two component singles.
+
+    The same two filters as ``megascale`` (a reliable ddG, no insertions or deletions), then the rows
+    whose ``mut_type`` names two substitutions. ``synonymous`` marks the ones where a component leaves
+    the residue unchanged (``T9Q:N23N``): those are singles wearing a double's name, and SPURS'
+    benchmark counts them, so they are flagged rather than dropped.
+
+    Columns: domain, mut_type, ddg, synonymous, and for each component i in (0, 1) wt{i}, pos{i}, mut{i}.
+    """
+    where = {name: s for s, names in splits.items() for name in names}
+    df = pd.read_csv(csv_path, usecols=["ddG_ML", "mut_type", "WT_name"], low_memory=False)
+    df = df[df.ddG_ML != "-"]
+    df = df[~df.mut_type.str.contains("ins|del", regex=True) & df.mut_type.str.contains(":")]
+    df = df[df.WT_name.map(where) == split].copy()
+
+    parts = df.mut_type.str.split(":", expand=True)
+    if parts.shape[1] != 2:
+        raise ValueError("a mut_type names more than two substitutions")
+    for i in (0, 1):
+        got = parts[i].str.extract(MUTATION)
+        df[[f"wt{i}", f"pos{i}", f"mut{i}"]] = got
+        df[f"pos{i}"] = pd.to_numeric(df[f"pos{i}"])
+    df = df.dropna(subset=["wt0", "wt1"])
+
+    out = df.rename(columns={"WT_name": "domain"}).assign(ddg=lambda t: pd.to_numeric(t.ddG_ML))
+    out["synonymous"] = (out.wt0 == out.mut0) | (out.wt1 == out.mut1)
+    return out.drop(columns=["ddG_ML"]).reset_index(drop=True)
+
+
+def components(df: pd.DataFrame) -> pd.DataFrame:
+    """One row per component substitution of ``doubles``, ready for ``add_features``.
+
+    ``pair`` points back at the double it came from, so predictions regroup with a sum.
+    """
+    import numpy as np
+
+    return pd.concat(
+        [
+            pd.DataFrame(
+                {
+                    "domain": df.domain.values,
+                    "position": df[f"pos{i}"].values,
+                    "wt_aa": df[f"wt{i}"].values,
+                    "mut_aa": df[f"mut{i}"].values,
+                    "pair": np.arange(len(df)),
+                    "ddg": 0.0,  # unused when predicting; the tensor builder expects the column
+                }
+            )
+            for i in (0, 1)
+        ],
+        ignore_index=True,
+    )
+
+
 def check_positions(df: pd.DataFrame) -> None:
     """Raise unless every row's wild-type amino acid is the one its sequence has at that position."""
     at_position = [seq[pos - 1] for seq, pos in zip(df.seq, df.position, strict=True)]

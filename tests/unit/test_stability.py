@@ -180,3 +180,48 @@ def test_the_network_learns_a_signal_it_can_see():
     test["predicted"] = stability.predict(model, scaling, test, embeddings)
 
     assert stability.score(test, "predicted")["pearson"] > 0.8
+
+
+def test_doubles_splits_each_pair_and_flags_synonymous_components(tmp_path):
+    """A double is read into its two components; T9Q:N23N is a single wearing a double's name."""
+    splits_path = tmp_path / "splits.pkl"
+    write_splits(splits_path, {"train": ["train.pdb"], "val": [], "test": ["test.pdb"]})
+    csv = tmp_path / "mega.csv"
+    pd.DataFrame(
+        {
+            "WT_name": ["test.pdb"] * 4 + ["train.pdb"],
+            "mut_type": ["T9Q:N23E", "T9Q:N23N", "A1_insG:K2L", "K5A", "T9Q:N23E"],
+            "ddG_ML": ["-1.5", "-0.4", "0.2", "-2.0", "-1.1"],
+        }
+    ).to_csv(csv, index=False)
+
+    got = stability.doubles(csv, stability.load_splits(splits_path))
+
+    # the single, the insertion and the training domain's row are all gone
+    assert list(got.mut_type) == ["T9Q:N23E", "T9Q:N23N"]
+    assert list(got.wt0) == ["T", "T"] and list(got.pos0) == [9, 9] and list(got.mut0) == ["Q", "Q"]
+    assert list(got.mut1) == ["E", "N"]
+    assert list(got.synonymous) == [False, True]
+    assert got.ddg.tolist() == [-1.5, -0.4]
+
+
+def test_components_lays_out_two_rows_per_double_that_regroup_by_pair():
+    pairs = pd.DataFrame(
+        {
+            "domain": ["d.pdb", "d.pdb"],
+            "wt0": ["T", "A"],
+            "pos0": [9, 3],
+            "mut0": ["Q", "G"],
+            "wt1": ["N", "L"],
+            "pos1": [23, 40],
+            "mut1": ["E", "M"],
+        }
+    )
+
+    got = stability.components(pairs)
+
+    assert len(got) == 4
+    assert sorted(got.pair) == [0, 0, 1, 1]
+    assert "ddg" in got, "the tensor builder reads this column even when predicting"
+    first = got[got.pair == 0].sort_values("position")
+    assert list(first.position) == [9, 23] and list(first.mut_aa) == ["Q", "E"]
