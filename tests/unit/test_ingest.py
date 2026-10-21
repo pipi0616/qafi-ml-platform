@@ -49,8 +49,9 @@ def test_waiting_for_a_receipt_that_never_comes_times_out(s3):
 def test_every_configured_source_fits_the_raw_rules():
     sources = ingest.load_sources(Path(__file__).parents[2] / "config" / "sources.toml")
     # 13, plus the Swiss-Prot entries for the knowledge base (11), plus 4 for the stability chapter (14a),
-    # plus 24 FASTQ files and 2 published fitness tables for the reads-to-fitness chapter (14b)
-    assert len(sources) == 44
+    # plus 24 FASTQ files and 2 published fitness tables for the reads-to-fitness chapter (14b),
+    # plus 3 for ProteinMPNN (15a) and 1 for the AWSEM-IF blend we compare against on KRAS (14c)
+    assert len(sources) == 48
     for source in sources:
         assert source["url"].startswith("https://")
         problems = check(source["key"], 10, b"")  # empty content: only naming and type rules apply
