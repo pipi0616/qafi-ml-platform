@@ -142,3 +142,10 @@ urls = [
     "https://raw.githubusercontent.com/dauparas/ProteinMPNN/{version}/protein_mpnn_utils.py",
     "https://raw.githubusercontent.com/dauparas/ProteinMPNN/{version}/vanilla_model_weights/v_48_020.pt",
 ]
+
+[[dataset]]
+name = "galpern-blend"
+version = "21241135"   # Zenodo record of Galpern et al. 2026 (bioRxiv 2026.07.30.741764)
+refresh = "manual"     # supplementary data of a finished preprint
+what = "Precomputed AWSEM-IF blend energies (de_fold and de_dark, kcal/mol) for the cancer gene set, used for the head-to-head against our two energies on KRAS (chapter 14c)"
+urls = ["https://zenodo.org/records/{version}/files/cancer.zip"]

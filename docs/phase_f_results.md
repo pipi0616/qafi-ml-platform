@@ -85,6 +85,27 @@ explains follows the functional energy in G6PD (100%) but not in CYP2C9 (72%). A
 gives essentially the same answer for folding and for binding; two energies tell them apart. We do not
 beat ESM-2 on absolute binding accuracy.
 
+**Against another two-energy method** (added 2026-10-21). Galpern et al. 2026 decompose a variant's cost
+into a folding energy and a "dark energy" for constraints beyond folding, also in kcal/mol, by blending
+an inverse-folding model with the AWSEM potential; their precomputed scores are public (Zenodo
+10.5281/zenodo.21241135). On the same 3,076 KRAS substitutions, matched on position and substitution:
+
+| | Measured folding | Measured binding, mean over six partners | Function term wins on |
+|---|---|---|---|
+| **Ours** (fold / func) | **0.368** / 0.243 | 0.205 / **0.320** | **6 of 6 partners** |
+| **Theirs** (fold / dark) | **0.416** / 0.248 | 0.188 / 0.062 | **0 of 6 partners** |
+
+Signs are opposite because the conventions are; magnitudes are compared. Their folding energy is the
+better of the two, by 0.416 to 0.368. Their dark energy does not track binding: it averages 0.062 and
+loses to their own folding term on every partner, while our functional energy averages 0.320 and wins on
+all six. The likely reason is supervision — their decomposition is unsupervised, a subtraction of physics
+from an evolutionary score, while the functional energy here is pinned by activity and binding assays.
+
+Stated fairly: their paper does not run this test. It uses KRAS qualitatively, to point out regions that
+cost folding but carry no dark energy, and never reports dark energy against measured binding energies.
+This is a new comparison, not a failure to reproduce their results — though binding is the case their own
+discussion calls the clearest for dark energy's thermodynamic interpretation.
+
 **Energies add, fitness does not.** Single mutants alone fix each substitution's two energies; the
 doubles are then predicted with nothing fitted to them:
 
